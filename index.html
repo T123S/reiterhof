@@ -160,6 +160,12 @@
             margin-top: 30px;
             box-shadow: 0 4px 0 #145a32;
         }
+        
+        #controls-hint {
+            margin-top: 15px;
+            color: #ddd;
+            font-size: 18px;
+        }
 
         #joystick-touch-zone {
             position: absolute;
@@ -203,6 +209,7 @@
     <div id="level-screen">
         <h1 id="screen-title">Pferdehof</h1>
         <p id="screen-desc">Finde Wasser am Fluss, Möhren auf dem Feld<br>und Äpfel bei den Bäumen.</p>
+        <div id="controls-hint"></div>
         <button id="start-btn" onclick="startGame()">Losreiten</button>
     </div>
 
@@ -220,6 +227,10 @@
       });
     }
 
+    // --- Geräteerkennung ---
+    // Wir prüfen grob, ob Touch verfügbar ist. Falls nicht, gehen wir von PC aus.
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
@@ -234,7 +245,12 @@
     };
 
     const player = { x: 1250, y: 1000, vx: 0, vy: 0, speed: 7, color: '#654321', flip: false, animFrame: 0 };
+    
+    // Joystick
     let joy = { active: false, baseX: 110, baseY: 0, stickX: 0, stickY: 0, dx: 0, dy: 0, radius: 60 };
+    
+    // Keyboard
+    const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
 
     const itemTypes = {
         apple: { name: "Apfel", emoji: "🍎", color: "#ff4d4d" },
@@ -251,9 +267,26 @@
         { name: "Winter", bg: "#dfe6e9", treeColor: "#b2bec3", riverColor: "#b3e5fc" }
     ];
 
+    // --- INIT ---
+    function initUI() {
+        const hint = document.getElementById('controls-hint');
+        const joyZone = document.getElementById('joystick-touch-zone');
+
+        if (!isTouchDevice) {
+            // PC Modus: Joystick verstecken, Hinweis anzeigen
+            joyZone.style.display = 'none';
+            hint.innerHTML = "Steuerung: <b>W, A, S, D</b> oder <b>Pfeiltasten</b><br>Ablegen: <b>Q</b> oder Klick";
+        } else {
+            // Mobile Modus
+            hint.innerHTML = "Benutze den Joystick zum Steuern";
+        }
+    }
+    initUI();
+
     function resize() {
         canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        joy.baseY = canvas.height - 110; if(!joy.active) { joy.stickX = joy.baseX; joy.stickY = joy.baseY; }
+        joy.baseY = canvas.height - 110; 
+        if(!joy.active) { joy.stickX = joy.baseX; joy.stickY = joy.baseY; }
     }
     window.addEventListener('resize', resize); resize();
 
@@ -357,12 +390,49 @@
 
     function update() {
         if(gameState.dropCooldown > 0) gameState.dropCooldown--;
+
+        // --- STEUERUNG (Hybrid) ---
+        let inputDx = 0;
+        let inputDy = 0;
+        let hasInput = false;
+
+        // Joystick Input
         if(joy.active) {
-            let tvx = joy.dx * player.speed; let tvy = joy.dy * player.speed;
-            player.vx += (tvx - player.vx) * 0.15; player.vy += (tvy - player.vy) * 0.15;
-            if(joy.dx < -0.1) player.flip = true; if(joy.dx > 0.1) player.flip = false;
+            inputDx = joy.dx;
+            inputDy = joy.dy;
+            hasInput = true;
+        } else {
+            // Tastatur Input (Nur wenn Joystick inaktiv)
+            if(keys.w || keys.ArrowUp) inputDy = -1;
+            if(keys.s || keys.ArrowDown) inputDy = 1;
+            if(keys.a || keys.ArrowLeft) inputDx = -1;
+            if(keys.d || keys.ArrowRight) inputDx = 1;
+            
+            // Wenn beide Tasten gedrückt (z.B. W und A), normalisieren
+            if(inputDx !== 0 || inputDy !== 0) {
+                // Diagonale Bewegung normalisieren damit sie nicht schneller ist
+                if(inputDx !== 0 && inputDy !== 0) {
+                    inputDx *= 0.707;
+                    inputDy *= 0.707;
+                }
+                hasInput = true;
+            }
+        }
+
+        if(hasInput) {
+            let tvx = inputDx * player.speed; 
+            let tvy = inputDy * player.speed;
+            player.vx += (tvx - player.vx) * 0.15; 
+            player.vy += (tvy - player.vy) * 0.15;
+            if(inputDx < -0.1) player.flip = true; 
+            if(inputDx > 0.1) player.flip = false;
             player.animFrame += 0.15;
-        } else { player.vx *= 0.85; player.vy *= 0.85; player.animFrame = 0; }
+        } else { 
+            player.vx *= 0.85; 
+            player.vy *= 0.85; 
+            player.animFrame = 0; 
+        }
+
         player.x += player.vx; player.y += player.vy;
         player.x = Math.max(50, Math.min(WORLD_W-50, player.x)); player.y = Math.max(50, Math.min(WORLD_H-50, player.y));
         let tcx = player.x - canvas.width/2; let tcy = player.y - canvas.height/2;
@@ -487,7 +557,10 @@
         if(gameState.inventory) { ctx.font = "30px Arial"; ctx.fillText(gameState.inventory.emoji, player.x, player.y - 95); drawNavArrow(); }
         for(let t of gameState.terrain.trees) if(inView(t.x, t.y)) drawRefinedTree(t, season.treeColor);
         for(let p of gameState.particles) { ctx.globalAlpha = p.life; ctx.fillText(p.char, p.x, p.y); }
-        ctx.globalAlpha = 1.0; ctx.restore(); drawJoystick();
+        ctx.globalAlpha = 1.0; ctx.restore(); 
+        
+        // Joystick nur zeichnen, wenn Touch aktiv
+        if (isTouchDevice) drawJoystick();
     }
 
     function drawNavArrow() {
@@ -560,9 +633,14 @@
             const x = gameState.stable.x; const y = gameState.stable.y;
             ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.beginPath(); ctx.ellipse(x, y+35, 50, 15, 0, 0, Math.PI*2); ctx.fill();
             ctx.fillStyle = "#d35400"; ctx.fillRect(x-40, y-30, 80, 60);
+            ctx.fillStyle = "rgba(0,0,0,0.1)"; for(let py = y-30; py < y+30; py+=10) ctx.fillRect(x-40, py, 80, 2);
             ctx.fillStyle = "#5d4037"; ctx.beginPath(); ctx.moveTo(x-55, y-30); ctx.lineTo(x, y-80); ctx.lineTo(x+55, y-30); ctx.fill();
             ctx.fillStyle = gameState.stable.open ? "#27ae60" : "#3e2723"; ctx.beginPath(); ctx.roundRect(x-15, y, 30, 30, 5); ctx.fill();
-            if(gameState.stable.open) { ctx.fillStyle = "white"; ctx.font = "bold 20px Fredoka"; ctx.fillText("Schlafen!", x, y - 90); ctx.fillText("⬇️", x, y - 120 + Math.sin(Date.now()/200)*5); }
+            ctx.strokeStyle = "#5d4037"; ctx.lineWidth = 3; ctx.stroke();
+            if(gameState.stable.open) {
+                ctx.fillStyle = "white"; ctx.font = "bold 20px Fredoka"; ctx.fillText("Schlafen!", x, y - 90);
+                let b = Math.sin(Date.now()/200)*5; ctx.fillText("⬇️", x, y - 120 + b);
+            }
         }
     }
 
@@ -586,15 +664,23 @@
         gameState.running = false; gameState.level++;
         document.getElementById('level-screen').style.display = 'flex';
         document.getElementById('screen-title').innerText = "Gute Nacht!";
+        document.getElementById('screen-desc').innerText = "Ein neuer Tag beginnt...";
         document.getElementById('start-btn').innerText = "Weiter";
     }
+
+    // Touch Handling (Joystick)
     const tz = document.getElementById('joystick-touch-zone');
-    tz.addEventListener('mousedown', (e) => sj(e.clientX, e.clientY));
-    window.addEventListener('mousemove', (e) => mj(e.clientX, e.clientY));
-    window.addEventListener('mouseup', ej);
+    // Nur bei Touch Devices aktiv, aber sicherheitshalber Events da lassen
     tz.addEventListener('touchstart', (e) => { e.preventDefault(); sj(e.touches[0].clientX, e.touches[0].clientY); });
     tz.addEventListener('touchmove', (e) => { e.preventDefault(); mj(e.touches[0].clientX, e.touches[0].clientY); });
     tz.addEventListener('touchend', ej);
+    // Mouse Support für Joystick am PC auch möglich, falls man klickt
+    if(isTouchDevice) {
+        tz.addEventListener('mousedown', (e) => sj(e.clientX, e.clientY));
+        window.addEventListener('mousemove', (e) => mj(e.clientX, e.clientY));
+        window.addEventListener('mouseup', ej);
+    }
+    
     function sj(cx, cy) { joy.active = true; mj(cx, cy); }
     function mj(cx, cy) {
         if(!joy.active) return; let dx = cx - joy.baseX; let dy = cy - joy.baseY; let d = Math.sqrt(dx*dx + dy*dy);
@@ -602,6 +688,23 @@
         joy.stickX = joy.baseX+dx; joy.stickY = joy.baseY+dy; joy.dx = dx/joy.radius; joy.dy = dy/joy.radius;
     }
     function ej() { joy.active = false; joy.stickX = joy.baseX; joy.stickY = joy.baseY; joy.dx = 0; joy.dy = 0; }
+
+    // Keyboard Handling
+    window.addEventListener('keydown', e => {
+        if(e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.ArrowUp = true;
+        if(e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.ArrowDown = true;
+        if(e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.ArrowLeft = true;
+        if(e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.ArrowRight = true;
+        if(e.key === 'q' || e.key === 'Q') dropItem(); // Q zum Ablegen
+    });
+
+    window.addEventListener('keyup', e => {
+        if(e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.ArrowUp = false;
+        if(e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.ArrowDown = false;
+        if(e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.ArrowLeft = false;
+        if(e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.ArrowRight = false;
+    });
+
 </script>
 </body>
 </html>
