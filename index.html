@@ -34,34 +34,31 @@
         #ui-layer {
             position: absolute;
             top: 10px;
-            left: 10px;
+            left: 0;
+            width: 100%;
+            height: 100%;
             pointer-events: none;
             color: #fff;
             text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
             font-size: 18px;
             z-index: 10;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            width: 100%;
-            box-sizing: border-box;
-            padding-right: 20px;
         }
 
-        .top-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            width: 100%;
-        }
-
-        .left-controls {
+        /* Oben Links: Stats */
+        .hud-left {
+            position: absolute;
+            top: 10px;
+            left: 10px;
             display: flex;
             flex-direction: column;
             gap: 10px;
         }
 
-        .right-controls {
+        /* Oben Rechts: Zoom & Sound */
+        .hud-right {
+            position: absolute;
+            top: 10px;
+            right: 10px;
             display: flex;
             flex-direction: column;
             gap: 10px;
@@ -69,19 +66,25 @@
             pointer-events: auto;
         }
 
+        /* Oben Mitte: Quest Box */
         #quest-box {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
             background: rgba(255, 255, 255, 0.95);
-            padding: 15px 20px;
+            padding: 10px 20px;
             border-radius: 15px;
             border-left: 5px solid #FFD700;
             color: #333;
             box-shadow: 0 5px 15px rgba(0,0,0,0.2);
             font-size: 18px;
-            max-width: 250px;
+            max-width: 300px;
             pointer-events: none;
             display: none;
             text-shadow: none;
-            margin-top: 10px;
+            text-align: center;
+            transition: all 0.3s ease;
         }
 
         .hud-row {
@@ -121,7 +124,7 @@
             font-size: 16px;
         }
 
-        .zoom-btn {
+        .icon-btn {
             background: #3498db;
             color: white;
             width: 45px;
@@ -131,6 +134,10 @@
             justify-content: center;
             align-items: center;
             margin-bottom: 5px;
+        }
+
+        #sound-btn {
+            background: #9b59b6;
         }
 
         #level-screen {
@@ -182,27 +189,27 @@
 <body>
 
     <div id="ui-layer">
-        <div class="top-row">
-            <div class="left-controls">
-                <div class="hud-item"><span>📅</span> <span id="level-name">Frühling</span></div>
-                <div class="hud-row">
-                    <div class="hud-item"><span>🎒</span> <span id="inventory-display">Leer</span></div>
-                    <button id="drop-btn" onclick="dropItem()">❌ Ablegen</button>
-                </div>
-                <div class="hud-item"><span>⭐</span> <span id="star-display">0</span> / <span id="target-display">3</span></div>
+        <!-- Oben Links -->
+        <div class="hud-left">
+            <div class="hud-item"><span>📅</span> <span id="level-name">Frühling</span></div>
+            <div class="hud-row">
+                <div class="hud-item"><span>🎒</span> <span id="inventory-display">Leer</span></div>
+                <button id="drop-btn" onclick="dropItem()">❌ Ablegen</button>
             </div>
+            <div class="hud-item"><span>⭐</span> <span id="star-display">0</span> / <span id="target-display">3</span></div>
+        </div>
 
-            <div class="right-controls">
-                <div>
-                    <button class="zoom-btn" onclick="changeZoom(0.1)">➕</button>
-                    <button class="zoom-btn" onclick="changeZoom(-0.1)">➖</button>
-                </div>
-                
-                <div id="quest-box">
-                    <strong>Pferdewunsch:</strong><br>
-                    <span id="quest-text">Suche ein Pferd!</span>
-                </div>
-            </div>
+        <!-- Oben Mitte -->
+        <div id="quest-box">
+            <strong>Pferdewunsch:</strong><br>
+            <span id="quest-text">Suche ein Pferd!</span>
+        </div>
+
+        <!-- Oben Rechts -->
+        <div class="hud-right">
+            <button id="sound-btn" class="icon-btn" onclick="toggleSound()">🔊</button>
+            <button class="icon-btn" onclick="changeZoom(0.1)">➕</button>
+            <button class="icon-btn" onclick="changeZoom(-0.1)">➖</button>
         </div>
     </div>
 
@@ -218,19 +225,112 @@
     <canvas id="gameCanvas"></canvas>
 
 <script>
-    // --- PWA Service Worker Registrierung ---
+    // --- PWA Service Worker ---
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(registration => console.log('ServiceWorker registriert:', registration.scope))
-          .catch(err => console.log('ServiceWorker Fehler:', err));
+        navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW Error:', err));
       });
     }
 
-    // --- Geräteerkennung ---
-    // Wir prüfen grob, ob Touch verfügbar ist. Falls nicht, gehen wir von PC aus.
-    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    // --- Sound System (Synthesizer) ---
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const soundCtx = new AudioContext();
+    let soundEnabled = true; // Status für Sound
 
+    function toggleSound() {
+        soundEnabled = !soundEnabled;
+        const btn = document.getElementById('sound-btn');
+        btn.innerText = soundEnabled ? "🔊" : "🔇";
+        if(soundEnabled && soundCtx.state === 'suspended') soundCtx.resume();
+    }
+    
+    const Sound = {
+        playTone: (freq, type, duration, vol = 0.1) => {
+            if(!soundEnabled) return;
+            if(soundCtx.state === 'suspended') soundCtx.resume();
+            const osc = soundCtx.createOscillator();
+            const gain = soundCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, soundCtx.currentTime);
+            gain.gain.setValueAtTime(vol, soundCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, soundCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(soundCtx.destination);
+            osc.start();
+            osc.stop(soundCtx.currentTime + duration);
+        },
+        playNoise: (duration) => {
+             if(!soundEnabled) return;
+             // Simples Rauschen für Hufgeklapper
+             if(soundCtx.state === 'suspended') soundCtx.resume();
+             const bufferSize = soundCtx.sampleRate * duration;
+             const buffer = soundCtx.createBuffer(1, bufferSize, soundCtx.sampleRate);
+             const data = buffer.getChannelData(0);
+             for (let i = 0; i < bufferSize; i++) {
+                 data[i] = Math.random() * 2 - 1;
+             }
+             const noise = soundCtx.createBufferSource();
+             noise.buffer = buffer;
+             const gain = soundCtx.createGain();
+             gain.gain.setValueAtTime(0.05, soundCtx.currentTime);
+             gain.gain.exponentialRampToValueAtTime(0.01, soundCtx.currentTime + duration);
+             
+             // Lowpass Filter damit es dumpf wie Hufe klingt
+             const filter = soundCtx.createBiquadFilter();
+             filter.type = 'lowpass';
+             filter.frequency.value = 150;
+
+             noise.connect(filter);
+             filter.connect(gain);
+             gain.connect(soundCtx.destination);
+             noise.start();
+        },
+        playNeigh: () => {
+            if(!soundEnabled) return;
+            // Wiehern simulieren (Frequenz Modulation)
+            if(soundCtx.state === 'suspended') soundCtx.resume();
+            const osc = soundCtx.createOscillator();
+            const gain = soundCtx.createGain();
+            osc.type = 'sawtooth';
+            
+            // Pitch Drop
+            osc.frequency.setValueAtTime(800, soundCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(400, soundCtx.currentTime + 0.4);
+            osc.frequency.linearRampToValueAtTime(600, soundCtx.currentTime + 0.6);
+            osc.frequency.linearRampToValueAtTime(300, soundCtx.currentTime + 1.0);
+
+            // Vibrato (LFO)
+            const lfo = soundCtx.createOscillator();
+            lfo.frequency.value = 15;
+            const lfoGain = soundCtx.createGain();
+            lfoGain.gain.value = 50;
+            lfo.connect(lfoGain);
+            lfoGain.connect(osc.frequency);
+            lfo.start();
+
+            gain.gain.setValueAtTime(0.1, soundCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.0, soundCtx.currentTime + 1.0);
+
+            osc.connect(gain);
+            gain.connect(soundCtx.destination);
+            osc.start();
+            osc.stop(soundCtx.currentTime + 1.0);
+        },
+        playSuccess: () => {
+            if(!soundEnabled) return;
+            Sound.playTone(523.25, 'sine', 0.2, 0.2); // C5
+            setTimeout(() => Sound.playTone(659.25, 'sine', 0.4, 0.2), 100); // E5
+        },
+        playPop: () => {
+            if(!soundEnabled) return;
+            Sound.playTone(400, 'triangle', 0.1, 0.1);
+        },
+        stepTimer: 0
+    };
+
+
+    // --- Setup ---
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
@@ -245,11 +345,7 @@
     };
 
     const player = { x: 1250, y: 1000, vx: 0, vy: 0, speed: 7, color: '#654321', flip: false, animFrame: 0 };
-    
-    // Joystick
     let joy = { active: false, baseX: 110, baseY: 0, stickX: 0, stickY: 0, dx: 0, dy: 0, radius: 60 };
-    
-    // Keyboard
     const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
 
     const itemTypes = {
@@ -267,17 +363,13 @@
         { name: "Winter", bg: "#dfe6e9", treeColor: "#b2bec3", riverColor: "#b3e5fc" }
     ];
 
-    // --- INIT ---
     function initUI() {
         const hint = document.getElementById('controls-hint');
         const joyZone = document.getElementById('joystick-touch-zone');
-
         if (!isTouchDevice) {
-            // PC Modus: Joystick verstecken, Hinweis anzeigen
             joyZone.style.display = 'none';
-            hint.innerHTML = "Steuerung: <b>W, A, S, D</b> oder <b>Pfeiltasten</b><br>Ablegen: <b>Q</b> oder Klick";
+            hint.innerHTML = "Steuerung: <b>W, A, S, D</b><br>Ablegen: <b>Leertaste</b> oder <b>Q</b>";
         } else {
-            // Mobile Modus
             hint.innerHTML = "Benutze den Joystick zum Steuern";
         }
     }
@@ -289,10 +381,17 @@
         if(!joy.active) { joy.stickX = joy.baseX; joy.stickY = joy.baseY; }
     }
     window.addEventListener('resize', resize); resize();
-
     function changeZoom(delta) { gameState.zoom += delta; gameState.zoom = Math.max(0.5, Math.min(1.5, gameState.zoom)); }
 
-    function startGame() { document.getElementById('level-screen').style.display = 'none'; initLevel(); gameState.running = true; loop(); }
+    function startGame() { 
+        document.getElementById('level-screen').style.display = 'none'; 
+        // Audio Context starten (User Interaction required)
+        if(soundCtx.state === 'suspended') soundCtx.resume();
+        Sound.playNeigh(); // Begrüßungswiehern
+        initLevel(); 
+        gameState.running = true; 
+        loop(); 
+    }
 
     function initLevel() {
         gameState.stars = 0; gameState.inventory = null; gameState.currentQuestHorse = null;
@@ -379,11 +478,17 @@
 
     function dropItem() {
         if(!gameState.inventory) return;
+        Sound.playPop(); // Sound Effekt
         const dropX = player.x + (player.flip ? 60 : -60); const dropY = player.y + 20;
         gameState.items.push({ x: dropX, y: dropY, type: gameState.inventory });
         createParticles(dropX, dropY, "💨"); gameState.inventory = null; gameState.dropCooldown = 60; updateUI();
         const box = document.getElementById('quest-box');
-        if(gameState.currentQuestHorse) updateQuestBox(gameState.currentQuestHorse); else box.style.display = 'none';
+        // Wenn man ein Item ablegt, Text resetten oder verstecken
+        if(gameState.currentQuestHorse && !gameState.currentQuestHorse.satisfied) {
+            updateQuestBox(gameState.currentQuestHorse);
+        } else {
+            box.style.display = 'none';
+        }
     }
 
     function loop() { if(!gameState.running) return; update(); draw(); requestAnimationFrame(loop); }
@@ -391,46 +496,30 @@
     function update() {
         if(gameState.dropCooldown > 0) gameState.dropCooldown--;
 
-        // --- STEUERUNG (Hybrid) ---
-        let inputDx = 0;
-        let inputDy = 0;
-        let hasInput = false;
-
-        // Joystick Input
-        if(joy.active) {
-            inputDx = joy.dx;
-            inputDy = joy.dy;
-            hasInput = true;
-        } else {
-            // Tastatur Input (Nur wenn Joystick inaktiv)
+        let inputDx = 0; let inputDy = 0; let hasInput = false;
+        if(joy.active) { inputDx = joy.dx; inputDy = joy.dy; hasInput = true; } 
+        else {
             if(keys.w || keys.ArrowUp) inputDy = -1;
             if(keys.s || keys.ArrowDown) inputDy = 1;
             if(keys.a || keys.ArrowLeft) inputDx = -1;
             if(keys.d || keys.ArrowRight) inputDx = 1;
-            
-            // Wenn beide Tasten gedrückt (z.B. W und A), normalisieren
-            if(inputDx !== 0 || inputDy !== 0) {
-                // Diagonale Bewegung normalisieren damit sie nicht schneller ist
-                if(inputDx !== 0 && inputDy !== 0) {
-                    inputDx *= 0.707;
-                    inputDy *= 0.707;
-                }
-                hasInput = true;
-            }
+            if(inputDx !== 0 || inputDy !== 0) { if(inputDx !== 0 && inputDy !== 0) { inputDx *= 0.707; inputDy *= 0.707; } hasInput = true; }
         }
 
         if(hasInput) {
-            let tvx = inputDx * player.speed; 
-            let tvy = inputDy * player.speed;
-            player.vx += (tvx - player.vx) * 0.15; 
-            player.vy += (tvy - player.vy) * 0.15;
-            if(inputDx < -0.1) player.flip = true; 
-            if(inputDx > 0.1) player.flip = false;
+            let tvx = inputDx * player.speed; let tvy = inputDy * player.speed;
+            player.vx += (tvx - player.vx) * 0.15; player.vy += (tvy - player.vy) * 0.15;
+            if(inputDx < -0.1) player.flip = true; if(inputDx > 0.1) player.flip = false;
             player.animFrame += 0.15;
+            
+            // Sound: Hufgeklapper (Rhythmus)
+            Sound.stepTimer++;
+            if(Sound.stepTimer > 20) { // Alle 20 Frames ein Geräusch
+                Sound.playNoise(0.05);
+                Sound.stepTimer = 0;
+            }
         } else { 
-            player.vx *= 0.85; 
-            player.vy *= 0.85; 
-            player.animFrame = 0; 
+            player.vx *= 0.85; player.vy *= 0.85; player.animFrame = 0; Sound.stepTimer = 0;
         }
 
         player.x += player.vx; player.y += player.vy;
@@ -471,6 +560,7 @@
                 let it = gameState.items[i];
                 if(dist(player.x, player.y, it.x, it.y) < 50) {
                     gameState.inventory = it.type; gameState.items.splice(i, 1);
+                    Sound.playPop(); // Sound Aufheben
                     createParticles(player.x, player.y, "✨"); updateUI();
                     const qb = document.getElementById('quest-box'); qb.style.display = 'block';
                     document.getElementById('quest-text').innerText = `Bringe ${it.type.name} zu einem Pferd!`;
@@ -483,6 +573,7 @@
                 gameState.currentQuestHorse = h; updateQuestBox(h);
                 if(gameState.inventory && gameState.inventory.name === h.want.name) {
                     h.satisfied = true; gameState.inventory = null; gameState.stars++;
+                    Sound.playSuccess(); // Sound Erfolg
                     createParticles(h.x, h.y, "❤️"); createParticles(h.x, h.y, "⭐"); updateUI();
                     document.getElementById('quest-text').innerText = "Danke! Sehr lecker!";
                     document.getElementById('quest-box').style.borderLeftColor = "#2ecc71";
@@ -559,7 +650,6 @@
         for(let p of gameState.particles) { ctx.globalAlpha = p.life; ctx.fillText(p.char, p.x, p.y); }
         ctx.globalAlpha = 1.0; ctx.restore(); 
         
-        // Joystick nur zeichnen, wenn Touch aktiv
         if (isTouchDevice) drawJoystick();
     }
 
@@ -597,17 +687,32 @@
         let fl2 = isMoving ? Math.sin(animFrame) : 0; ctx.strokeStyle = color;
         ctx.beginPath(); ctx.moveTo(15, 10); ctx.quadraticCurveTo(20+fl2*10, 25, 17+fl2*12, 35); ctx.lineTo(17+fl2*15, 52); ctx.stroke();
         ctx.fillStyle = "#1a1a1a"; ctx.beginPath(); ctx.fillRect(15+fl2*15, 52, 6, 4); ctx.fill();
-        ctx.save(); ctx.translate(22, -8+hb); ctx.rotate(-0.2); ctx.fillStyle = color;
-        ctx.beginPath(); ctx.moveTo(-5, 10); ctx.lineTo(2, -25); ctx.lineTo(12,-20); ctx.lineTo(15, 10); ctx.fill();
-        ctx.beginPath(); ctx.arc(8, -25, 9, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.ellipse(15, -22, 12, 7, 0.2, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.arc(22, -23, 2, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(0, -32); ctx.lineTo(3, -42); ctx.lineTo(8, -32); ctx.fill(); 
-        ctx.beginPath(); ctx.moveTo(-4,-30); ctx.lineTo(-6,-40); ctx.lineTo(2, -30); ctx.fill(); 
-        ctx.fillStyle = "#2c2c2c"; ctx.beginPath(); ctx.moveTo(-2,-35); ctx.quadraticCurveTo(-15,-25,-8,0); ctx.lineTo(2,-25); ctx.fill();
-        ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(8,-27,3.5,0,Math.PI*2); ctx.fill();
-        ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(9,-27,1.5,0,Math.PI*2); ctx.fill();
-        ctx.restore(); ctx.strokeStyle = "#2c2c2c"; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-28, 0);
+        
+        // --- Neuer Hals: Noch näher am Körper ---
+        ctx.save(); 
+        // X: 16 (vorher 22), rückt Hals näher an die Körpermitte (0,0)
+        ctx.translate(16, -6+hb); 
+        ctx.rotate(-0.2); 
+        ctx.fillStyle = color;
+        ctx.beginPath(); 
+        // Angepasster Pfad, damit der Hals sauber am Körper anliegt
+        ctx.moveTo(-10, 15); 
+        ctx.lineTo(0, -25); 
+        ctx.lineTo(10, -20); 
+        ctx.lineTo(12, 15); 
+        ctx.fill();
+
+        ctx.beginPath(); ctx.arc(6, -25, 9, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(13, -22, 12, 7, 0.2, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.arc(20, -23, 2, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(-2, -32); ctx.lineTo(1, -42); ctx.lineTo(6, -32); ctx.fill(); 
+        ctx.beginPath(); ctx.moveTo(-6,-30); ctx.lineTo(-8,-40); ctx.lineTo(0, -30); ctx.fill(); 
+        ctx.fillStyle = "#2c2c2c"; ctx.beginPath(); ctx.moveTo(-4,-35); ctx.quadraticCurveTo(-15,-25,-10,0); ctx.lineTo(0,-25); ctx.fill();
+        ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(6,-27,3.5,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(7,-27,1.5,0,Math.PI*2); ctx.fill();
+        ctx.restore(); 
+        
+        ctx.strokeStyle = "#2c2c2c"; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-28, 0);
         let tw = isMoving ? Math.sin(animFrame*2)*5 : Math.sin(Date.now()/300)*3;
         ctx.quadraticCurveTo(-45, 10, -40+tw, 35); ctx.stroke();
         if(isPlayer) { ctx.fillStyle = "#c0392b"; ctx.beginPath(); ctx.moveTo(5, -5); ctx.quadraticCurveTo(0, 0, -15, -5); ctx.quadraticCurveTo(-10, 10, 5, 10); ctx.fill(); }
@@ -668,13 +773,10 @@
         document.getElementById('start-btn').innerText = "Weiter";
     }
 
-    // Touch Handling (Joystick)
     const tz = document.getElementById('joystick-touch-zone');
-    // Nur bei Touch Devices aktiv, aber sicherheitshalber Events da lassen
     tz.addEventListener('touchstart', (e) => { e.preventDefault(); sj(e.touches[0].clientX, e.touches[0].clientY); });
     tz.addEventListener('touchmove', (e) => { e.preventDefault(); mj(e.touches[0].clientX, e.touches[0].clientY); });
     tz.addEventListener('touchend', ej);
-    // Mouse Support für Joystick am PC auch möglich, falls man klickt
     if(isTouchDevice) {
         tz.addEventListener('mousedown', (e) => sj(e.clientX, e.clientY));
         window.addEventListener('mousemove', (e) => mj(e.clientX, e.clientY));
@@ -689,13 +791,12 @@
     }
     function ej() { joy.active = false; joy.stickX = joy.baseX; joy.stickY = joy.baseY; joy.dx = 0; joy.dy = 0; }
 
-    // Keyboard Handling
     window.addEventListener('keydown', e => {
         if(e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.ArrowUp = true;
         if(e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.ArrowDown = true;
         if(e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.ArrowLeft = true;
         if(e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.ArrowRight = true;
-        if(e.key === 'q' || e.key === 'Q') dropItem(); // Q zum Ablegen
+        if(e.key === 'q' || e.key === 'Q' || e.key === ' ') dropItem(); // Q oder Space
     });
 
     window.addEventListener('keyup', e => {
