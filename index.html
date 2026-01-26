@@ -159,10 +159,10 @@
     let cameraAngle = { phi: Math.PI/3.5, theta: Math.PI/4, dist: 12 };
     let keys = { w: false, s: false, a: false, d: false };
     let mouse = { x: 0, y: 0, down: false };
-    let clock; // Initialized in init() to avoid reference error
+    let clock; 
 
     function init() {
-        clock = new THREE.Clock(); // Correct place to initialize
+        clock = new THREE.Clock(); 
 
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb);
@@ -212,6 +212,13 @@
         animate();
     }
 
+    // --- TERRAIN MATH ---
+    function getTerrainHeight(x, z) {
+        // Must match the formula used in createEnvironment
+        return Math.sin(x*0.04) * Math.cos(z*0.04) * 2 + 
+               Math.sin(x*0.1) * Math.cos(z*0.1) * 0.5;
+    }
+
     // --- CREATION FUNCTIONS ---
 
     function createEnvironment() {
@@ -220,9 +227,8 @@
         const pos = groundGeo.attributes.position;
         for(let i=0; i<pos.count; i++) {
             const x = pos.getX(i);
-            const z = pos.getY(i);
-            const h = Math.sin(x*0.04) * Math.cos(z*0.04) * 2 + 
-                      Math.sin(x*0.1) * Math.cos(z*0.1) * 0.5;
+            const z = pos.getY(i); // Z in PlaneGeometry is Y in the generation logic before rotation
+            const h = getTerrainHeight(x, z);
             pos.setZ(i, h);
         }
         groundGeo.computeVertexNormals();
@@ -259,29 +265,36 @@
         floor.position.y = 0.1;
         stableGroup.add(floor);
         
-        stableGroup.position.set(ZONES.STABLE.x, 0, ZONES.STABLE.z);
+        const stableY = getTerrainHeight(ZONES.STABLE.x, ZONES.STABLE.z);
+        stableGroup.position.set(ZONES.STABLE.x, stableY, ZONES.STABLE.z);
         scene.add(stableGroup);
 
         // ROUNDPEN
         const sandMat = new THREE.MeshStandardMaterial({ color: 0xe6cea0, roughness: 1 });
+        const penY = getTerrainHeight(ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z);
+        
         const penFloor = new THREE.Mesh(new THREE.CylinderGeometry(ZONES.ROUNDPEN.r, ZONES.ROUNDPEN.r, 0.1, 32), sandMat);
-        penFloor.position.set(ZONES.ROUNDPEN.x, 0.1, ZONES.ROUNDPEN.z);
+        penFloor.position.set(ZONES.ROUNDPEN.x, penY + 0.1, ZONES.ROUNDPEN.z);
         penFloor.receiveShadow = true;
         scene.add(penFloor);
-        createCurvedFence(ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z, ZONES.ROUNDPEN.r);
+        createCurvedFence(ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z, ZONES.ROUNDPEN.r, penY);
 
         // PASTURE
-        createFenceRect(ZONES.PASTURE.x, ZONES.PASTURE.z, 30, 30);
+        const pastureY = getTerrainHeight(ZONES.PASTURE.x, ZONES.PASTURE.z);
+        createFenceRect(ZONES.PASTURE.x, ZONES.PASTURE.z, 30, 30, false, pastureY);
         for(let i=0; i<60; i++) {
-            createFlower(ZONES.PASTURE.x + (Math.random()-0.5)*25, ZONES.PASTURE.z + (Math.random()-0.5)*25);
+            const fx = ZONES.PASTURE.x + (Math.random()-0.5)*25;
+            const fz = ZONES.PASTURE.z + (Math.random()-0.5)*25;
+            createFlower(fx, fz);
         }
 
         // ARENA
+        const arenaY = getTerrainHeight(ZONES.ARENA.x, ZONES.ARENA.z);
         const arenaFloor = new THREE.Mesh(new THREE.BoxGeometry(34, 0.1, 34), sandMat);
-        arenaFloor.position.set(ZONES.ARENA.x, 0.1, ZONES.ARENA.z);
+        arenaFloor.position.set(ZONES.ARENA.x, arenaY + 0.1, ZONES.ARENA.z);
         arenaFloor.receiveShadow = true;
         scene.add(arenaFloor);
-        createFenceRect(ZONES.ARENA.x, ZONES.ARENA.z, 34, 34, true);
+        createFenceRect(ZONES.ARENA.x, ZONES.ARENA.z, 34, 34, true, arenaY);
 
         // NATURE
         for(let i=0; i<60; i++) {
@@ -295,16 +308,17 @@
         }
     }
 
-    function createCurvedFence(cx, cz, r) {
+    function createCurvedFence(cx, cz, r, baseY) {
         const count = 30;
         const woodMat = new THREE.MeshStandardMaterial({color: 0x8d6e63});
         for(let i=0; i<count; i++) {
             const theta = (i/count) * Math.PI * 2;
             const x = cx + Math.cos(theta) * r;
             const z = cz + Math.sin(theta) * r;
+            const y = getTerrainHeight(x, z);
             
             const post = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.8, 8), woodMat);
-            post.position.set(x, 0.9, z);
+            post.position.set(x, y + 0.9, z);
             post.castShadow = true;
             scene.add(post);
 
@@ -312,22 +326,24 @@
                 const nextTheta = ((i+1)/count) * Math.PI * 2;
                 const nx = cx + Math.cos(nextTheta) * r;
                 const nz = cz + Math.sin(nextTheta) * r;
+                const ny = getTerrainHeight(nx, nz);
                 
                 const midX = (x + nx)/2;
                 const midZ = (z + nz)/2;
+                const midY = (y + ny)/2;
                 const dist = Math.hypot(nx-x, nz-z);
                 const angle = Math.atan2(nz-z, nx-x);
                 
                 const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, dist, 6), new THREE.MeshStandardMaterial({color: 0xffffff}));
                 rail.rotation.z = Math.PI/2;
                 rail.rotation.y = -angle;
-                rail.position.set(midX, 1.4, midZ);
+                rail.position.set(midX, midY + 1.4, midZ);
                 scene.add(rail);
             }
         }
     }
 
-    function createFenceRect(cx, cz, w, h, isLow = false) {
+    function createFenceRect(cx, cz, w, h, isLow, baseY) {
         const height = isLow ? 1.0 : 1.5;
         const postMat = new THREE.MeshStandardMaterial({color: 0xffffff});
         
@@ -339,25 +355,28 @@
         ];
         
         corners.forEach(p => {
+            const py = getTerrainHeight(p.x, p.z);
             const post = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, height, 12), postMat);
-            post.position.set(p.x, height/2, p.z);
+            post.position.set(p.x, py + height/2, p.z);
             post.castShadow = true;
             scene.add(post);
         });
-
+        
+        // Rails simplified (flat height based on center for simplicity, or it gets complex)
         const railMat = new THREE.MeshStandardMaterial({color: 0xffffff});
         const railT = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, w, 8), railMat);
-        railT.rotation.z = Math.PI/2; railT.position.set(cx, height-0.2, cz - h/2); scene.add(railT);
+        railT.rotation.z = Math.PI/2; railT.position.set(cx, baseY + height-0.2, cz - h/2); scene.add(railT);
         
-        const railB = railT.clone(); railB.position.z = cz + h/2; scene.add(railB);
+        const railB = railT.clone(); railB.position.z = cz + h/2; railB.position.y = getTerrainHeight(cx, cz+h/2) + height-0.2; scene.add(railB);
         
         const railL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, h, 8), railMat);
-        railL.rotation.x = Math.PI/2; railL.position.set(cx - w/2, height-0.2, cz); scene.add(railL);
+        railL.rotation.x = Math.PI/2; railL.position.set(cx - w/2, getTerrainHeight(cx-w/2, cz) + height-0.2, cz); scene.add(railL);
         
-        const railR = railL.clone(); railR.position.x = cx + w/2; scene.add(railR);
+        const railR = railL.clone(); railR.position.x = cx + w/2; railR.position.y = getTerrainHeight(cx+w/2, cz) + height-0.2; scene.add(railR);
     }
 
     function createDetailedTree(x, z) {
+        const y = getTerrainHeight(x, z);
         const group = new THREE.Group();
         const trunkGeo = new THREE.CylinderGeometry(0.3, 0.5, 2.5, 8);
         const trunkMat = new THREE.MeshStandardMaterial({color: 0x4e342e});
@@ -378,28 +397,30 @@
 
         const s = 1 + Math.random() * 0.5;
         group.scale.set(s,s,s);
-        group.position.set(x, 0, z);
+        group.position.set(x, y, z);
         group.rotation.y = Math.random() * Math.PI;
         scene.add(group);
     }
 
     function createDetailedRock(x, z) {
+        const y = getTerrainHeight(x, z);
         const geo = new THREE.SphereGeometry(1, 4, 3);
         const mat = new THREE.MeshStandardMaterial({color: 0x808080, roughness: 0.9});
         const rock = new THREE.Mesh(geo, mat);
-        rock.position.set(x, 0.3, z);
+        rock.position.set(x, y + 0.3, z);
         rock.scale.set(0.5 + Math.random(), 0.3 + Math.random()*0.3, 0.5 + Math.random());
         rock.castShadow = true;
         scene.add(rock);
     }
 
     function createFlower(x, z) {
+        const y = getTerrainHeight(x, z);
         const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.4), new THREE.MeshBasicMaterial({color: 0x00ff00}));
-        stem.position.set(x, 0.2, z);
+        stem.position.set(x, y + 0.2, z);
         scene.add(stem);
         const petalColor = Math.random() > 0.5 ? 0xffeb3b : 0xe91e63;
         const flower = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), new THREE.MeshBasicMaterial({color: petalColor}));
-        flower.position.set(x, 0.4, z);
+        flower.position.set(x, y + 0.4, z);
         flower.scale.y = 0.5;
         scene.add(flower);
     }
@@ -420,7 +441,7 @@
         }
     }
 
-    // --- CHARACTERS (Rounded) ---
+    // --- CHARACTERS ---
 
     function createPlayer() {
         player = new THREE.Group();
@@ -464,7 +485,7 @@
         const legRGroup = new THREE.Group(); legRGroup.add(legR); legR.position.y = -0.375; legRGroup.position.set(0.12, 1.0, 0);
         player.add(legRGroup); player.legR = legRGroup;
 
-        player.position.set(0, 0, 10);
+        player.position.set(0, getTerrainHeight(0, 10), 10);
         scene.add(player);
     }
 
@@ -539,7 +560,9 @@
         horse.legBL = createLeg(0.25, -0.6); horse.add(horse.legBL);
         horse.legBR = createLeg(-0.25, -0.6); horse.add(horse.legBR);
 
-        horse.position.set(ZONES.STABLE.x - 5, 0, ZONES.STABLE.z + 5);
+        const startX = ZONES.STABLE.x - 5;
+        const startZ = ZONES.STABLE.z + 5;
+        horse.position.set(startX, getTerrainHeight(startX, startZ), startZ);
         scene.add(horse);
     }
 
@@ -573,7 +596,11 @@
         if(moveDir.lengthSq() > 0) {
             isMoving = true;
             moveDir.normalize();
+            
+            // Move X/Z
             player.position.addScaledVector(moveDir, speed);
+            
+            // Player Rotation
             const targetRot = Math.atan2(moveDir.x, moveDir.z);
             let rotDiff = targetRot - player.rotation.y;
             while(rotDiff > Math.PI) rotDiff -= Math.PI*2;
@@ -581,12 +608,18 @@
             player.rotation.y += rotDiff * 0.2;
         }
 
+        // Apply Terrain Height to Player
+        const pHeight = getTerrainHeight(player.position.x, player.position.z);
+        // Player animation bob
+        const time = Date.now() * 0.015;
+        const bob = isMoving ? Math.sin(time*2)*0.05 : 0;
+        player.position.y = pHeight + bob;
+
         if(isMoving) {
-            const time = Date.now() * 0.015;
             player.legL.rotation.x = Math.sin(time) * 0.8;
             player.legR.rotation.x = Math.sin(time + Math.PI) * 0.8;
-            player.children.forEach(c => { // Bob body
-                if(c.name === 'shirt' && c.geometry.type === 'CylinderGeometry') c.position.y = 1.3 + Math.sin(time*2)*0.05;
+            player.children.forEach(c => { // Bob shirt
+                if(c.name === 'shirt' && c.geometry.type === 'CylinderGeometry') c.position.y = 1.3 + bob;
             });
         } else {
             player.legL.rotation.x = THREE.MathUtils.lerp(player.legL.rotation.x, 0, 0.2);
@@ -604,33 +637,68 @@
             else { horseState = "IDLE"; resetHorsePose(0.05); }
         }
         
+        // Ensure horse is always on ground (unless doing tricks that lift it, but base pos is ground)
+        if(horseState !== "REAR_TRICK_ACTIVE") { // We will just check for trick flags or handle in reset
+             // Keep horse on ground, but allow Y offset from tricks in resetHorsePose
+             // Actually, resetHorsePose handles Y relative to 1.25. 
+             // We need base position.y to be terrain height.
+             // But horse.position is the group pivot (feet level).
+             const hY = getTerrainHeight(horse.position.x, horse.position.z);
+             
+             // If doing REAR trick, we lift the group or rotate? 
+             // doTrick("REAR") moves horse.position.y to 2.0. This assumes flat ground.
+             // We need to apply terrain offset to that action.
+             // For now, simple fix: set Y to terrain height in Idle/Walk.
+             if(horseState !== "GROUNDWORK") {
+                // If not in a special trick state that overrides Y
+                horse.position.y = hY; 
+             } else {
+                 // In Groundwork, tricks might modify Y manually relative to ground?
+                 // Let's make tricks relative to ground.
+             }
+        }
+
         updateStatusBar();
     }
 
     function updateLeashPhysics(dt) {
         const dist = player.position.distanceTo(horse.position);
+        
         if(dist > 2.8) {
             const dir = new THREE.Vector3().subVectors(player.position, horse.position).normalize();
-            dir.y = 0;
+            dir.y = 0; // Ignore Y for direction to prevent tilting into ground
+            
             horse.position.addScaledVector(dir, 6.0 * dt);
+            
+            // Manual rotation to prevent flipping
             const targetRot = Math.atan2(dir.x, dir.z);
             let rotDiff = targetRot - horse.rotation.y;
             while(rotDiff > Math.PI) rotDiff -= Math.PI*2;
             while(rotDiff < -Math.PI) rotDiff += Math.PI*2;
             horse.rotation.y += rotDiff * 0.1;
+            
+            // Force upright
+            horse.rotation.x = 0;
+            horse.rotation.z = 0;
+
             animateHorseWalk(true);
         } else {
             animateHorseWalk(false);
         }
+        
+        // Update Y for terrain
+        const hY = getTerrainHeight(horse.position.x, horse.position.z);
+        horse.position.y = hY;
+
         updateLeashVisual();
     }
 
     function updateLeashVisual() {
-        const handPos = player.position.clone(); handPos.y = 1.3;
+        const handPos = player.position.clone(); handPos.y += 1.3;
         // Offset hand to side
         handPos.add(new THREE.Vector3(0.3, 0, 0).applyAxisAngle(new THREE.Vector3(0,1,0), player.rotation.y));
         
-        const neckPos = horse.position.clone(); neckPos.y = 1.5; 
+        const neckPos = horse.position.clone(); neckPos.y += 1.5; 
         neckPos.add(new THREE.Vector3(0,0,0.7).applyAxisAngle(new THREE.Vector3(0,1,0), horse.rotation.y));
         
         const posAttr = leashLine.geometry.attributes.position;
@@ -662,28 +730,55 @@
         activeTaskTimer += dt;
         const radius = 9;
         const center = new THREE.Vector3(ZONES.ROUNDPEN.x, 0, ZONES.ROUNDPEN.z);
+        
         if(activeTaskTimer < 12) {
             const speed = 1.5;
             const angle = Date.now() * 0.001 * speed;
-            horse.position.set(center.x + Math.cos(angle)*radius, 0, center.z + Math.sin(angle)*radius);
-            horse.lookAt(center.x + Math.cos(angle+0.5)*radius, 0, center.z + Math.sin(angle+0.5)*radius);
+            const tx = center.x + Math.cos(angle)*radius;
+            const tz = center.z + Math.sin(angle)*radius;
+            
+            // Position
+            const ty = getTerrainHeight(tx, tz);
+            horse.position.set(tx, ty, tz);
+
+            // Rotation (Manual to avoid flipping)
+            // Look at next point
+            const nextX = center.x + Math.cos(angle+0.1)*radius;
+            const nextZ = center.z + Math.sin(angle+0.1)*radius;
+            const dirX = nextX - tx;
+            const dirZ = nextZ - tz;
+            horse.rotation.y = Math.atan2(dirX, dirZ);
+            horse.rotation.x = 0; // Prevent flip
+            horse.rotation.z = 0; // Prevent flip
+
             animateHorseWalk(true, 2.0);
         } else {
+            const hY = getTerrainHeight(horse.position.x, horse.position.z);
+            horse.position.y = hY;
             resetHorsePose();
+            
             if(activeTaskTimer < 12.1) showBubble("Wieherr! (Fertig)");
-            horse.lookAt(player.position.x, 0, player.position.z);
+            
+            // Face player
+            const dx = player.position.x - horse.position.x;
+            const dz = player.position.z - horse.position.z;
+            horse.rotation.y = Math.atan2(dx, dz);
         }
     }
 
     function updateGrazing(dt) {
         activeTaskTimer += dt;
+        // Ensure on ground
+        horse.position.y = getTerrainHeight(horse.position.x, horse.position.z);
+        
         horse.neck.rotation.x = THREE.MathUtils.lerp(horse.neck.rotation.x, 0.7, 0.05);
         if(activeTaskTimer > 8 && activeTaskTimer < 8.1) showBubble("Munch Munch...");
         if(activeTaskTimer > 15 && activeTaskTimer < 15.1) showBubble("Wieherr! (Satt)");
-        horse.tail.rotation.z = Math.sin(Date.now() * 0.003) * 0.3; // Lazy tail swish
+        horse.tail.rotation.z = Math.sin(Date.now() * 0.003) * 0.3; 
     }
 
     function animateHorseWalk(isMoving, speedMult = 1.0) {
+        const hY = getTerrainHeight(horse.position.x, horse.position.z);
         if(isMoving) {
             const time = Date.now() * 0.01 * speedMult;
             horse.legFL.rotation.x = Math.sin(time) * 0.6;
@@ -692,9 +787,12 @@
             horse.legBL.rotation.x = Math.sin(time + Math.PI) * 0.6;
             horse.neck.rotation.x = -0.4 + Math.sin(time * 2) * 0.05;
             horse.tail.rotation.z = Math.sin(time * 1.5) * 0.15;
-            horse.position.y = 1.25 + Math.sin(time*2)*0.05; // Gallop bounce
+            
+            // Gallop bounce relative to terrain
+            horse.position.y = hY + Math.abs(Math.sin(time*2)*0.1); 
         } else {
             resetHorsePose();
+            horse.position.y = hY;
         }
     }
 
@@ -704,12 +802,18 @@
         horse.legBL.rotation.x = THREE.MathUtils.lerp(horse.legBL.rotation.x, 0, lerp);
         horse.legBR.rotation.x = THREE.MathUtils.lerp(horse.legBR.rotation.x, 0, lerp);
         horse.neck.rotation.x = THREE.MathUtils.lerp(horse.neck.rotation.x, -0.4, lerp);
-        horse.rotation.z = THREE.MathUtils.lerp(horse.rotation.z, 0, lerp);
-        horse.position.y = THREE.MathUtils.lerp(horse.position.y, 1.25, lerp);
+        
+        // Reset X/Z rotation to prevent getting stuck in "trick" pose or flipped
+        // Only if NOT in active trick (simple implementation checks state name)
+        if(horseState !== "GROUNDWORK") {
+            horse.rotation.z = THREE.MathUtils.lerp(horse.rotation.z, 0, lerp);
+            horse.rotation.x = THREE.MathUtils.lerp(horse.rotation.x, 0, lerp);
+        }
+        
         horse.tail.rotation.z = THREE.MathUtils.lerp(horse.tail.rotation.z, 0, lerp);
     }
 
-    // --- MINIMAP LABELS ---
+    // --- DRAW MINIMAP (Added) ---
     function drawMinimap() {
         if(!minimapCtx) return;
         const width = 200, height = 200;
@@ -748,25 +852,29 @@
         }
 
         // Draw Horse
-        minimapCtx.fillStyle = "#ff9800"; 
-        minimapCtx.beginPath();
-        minimapCtx.arc(mapX(horse.position.x), mapZ(horse.position.z), 5, 0, Math.PI*2);
-        minimapCtx.fill();
+        if(horse) {
+            minimapCtx.fillStyle = "#ff9800"; 
+            minimapCtx.beginPath();
+            minimapCtx.arc(mapX(horse.position.x), mapZ(horse.position.z), 5, 0, Math.PI*2);
+            minimapCtx.fill();
+        }
 
         // Draw Player
-        minimapCtx.fillStyle = "#00bcd4";
-        minimapCtx.beginPath();
-        minimapCtx.arc(mapX(player.position.x), mapZ(player.position.z), 5, 0, Math.PI*2);
-        minimapCtx.fill();
+        if(player) {
+            minimapCtx.fillStyle = "#00bcd4";
+            minimapCtx.beginPath();
+            minimapCtx.arc(mapX(player.position.x), mapZ(player.position.z), 5, 0, Math.PI*2);
+            minimapCtx.fill();
 
-        // View Cone
-        const fwd = new THREE.Vector3();
-        camera.getWorldDirection(fwd);
-        minimapCtx.strokeStyle = "rgba(255,255,255,0.5)";
-        minimapCtx.beginPath();
-        minimapCtx.moveTo(mapX(player.position.x), mapZ(player.position.z));
-        minimapCtx.lineTo(mapX(player.position.x + fwd.x * 20), mapZ(player.position.z + fwd.z * 20));
-        minimapCtx.stroke();
+            // View Cone
+            const fwd = new THREE.Vector3();
+            camera.getWorldDirection(fwd);
+            minimapCtx.strokeStyle = "rgba(255,255,255,0.5)";
+            minimapCtx.beginPath();
+            minimapCtx.moveTo(mapX(player.position.x), mapZ(player.position.z));
+            minimapCtx.lineTo(mapX(player.position.x + fwd.x * 20), mapZ(player.position.z + fwd.z * 20));
+            minimapCtx.stroke();
+        }
     }
 
     // --- INPUTS & UI ---
@@ -805,12 +913,22 @@
     }
 
     function doTrick(type) {
+        // Base height
+        const hY = getTerrainHeight(horse.position.x, horse.position.z);
+        
         if(type === "REAR") {
-            const tl = setInterval(() => { horse.rotation.x = -0.8; horse.position.y = 2.0; }, 10);
+            const tl = setInterval(() => { 
+                horse.rotation.x = -0.8; 
+                horse.position.y = hY + 1.0; // Lift up relative to terrain
+            }, 10);
             setTimeout(() => { clearInterval(tl); resetHorsePose(1.0); }, 1000); showBubble("Steigen!");
         }
         if(type === "BOW") {
-            const tl = setInterval(() => { horse.rotation.z = 0.2; horse.rotation.x = 0.6; horse.position.y = 0.5; }, 10);
+            const tl = setInterval(() => { 
+                horse.rotation.z = 0.2; 
+                horse.rotation.x = 0.6; 
+                horse.position.y = hY - 0.2; 
+            }, 10);
             setTimeout(() => { clearInterval(tl); resetHorsePose(1.0); }, 1500); showBubble("Verbeugen!");
         }
         if(type === "SPIN") {
@@ -858,7 +976,11 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
     }
     function updateCamera() {
-        const target = player.position.clone().add(new THREE.Vector3(0, 2, 0));
+        // Look at player head
+        const pHeight = getTerrainHeight(player.position.x, player.position.z);
+        const target = player.position.clone();
+        target.y = pHeight + 2; // Focus on head level
+
         const offset = new THREE.Vector3(
             cameraAngle.dist * Math.sin(cameraAngle.phi) * Math.sin(cameraAngle.theta),
             cameraAngle.dist * Math.cos(cameraAngle.phi),
@@ -870,7 +992,6 @@
 
     function animate() {
         requestAnimationFrame(animate);
-        // Safety check if clock is initialized
         if(clock) {
             const dt = clock.getDelta();
             if(gameState === "FREE") updatePhysics(dt);
@@ -895,6 +1016,7 @@
         else sb.innerText = "Freizeit";
     }
 
+    // Config Panel Logic
     document.getElementById('startBtn').onclick = () => {
         updateColors();
         document.getElementById('config-panel').style.display = 'none';
