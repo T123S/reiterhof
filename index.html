@@ -2,810 +2,477 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pferdehof Abenteuer</title>
-    
-    <!-- PWA Verknüpfungen -->
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#7BC043">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="icons/icon-192.png">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Pferde-Simulator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #111; }
+        canvas { display: block; }
 
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #2c3e50;
-            font-family: 'Fredoka', sans-serif;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-
-        #gameCanvas {
-            display: block;
-            margin: 0 auto;
-        }
-
-        /* --- UI Elemente --- */
-        #ui-layer {
+        #ui-container {
             position: absolute;
-            top: 10px;
-            left: 0;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            max-width: 300px;
+            z-index: 100;
+        }
+
+        h2 { margin-top: 0; color: #2c3e50; font-size: 1.2em; }
+        .config-section { margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+        .row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        label { font-size: 0.9em; color: #555; }
+        input[type="color"] { border: none; width: 30px; height: 30px; cursor: pointer; background: none; }
+        
+        button {
             width: 100%;
-            height: 100%;
-            pointer-events: none;
-            color: #fff;
-            text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
-            font-size: 18px;
-            z-index: 10;
+            padding: 10px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
         }
+        button:hover { background: #219150; }
 
-        /* Oben Links: Stats */
-        .hud-left {
+        #controls-hint {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        /* Oben Rechts: Zoom & Sound */
-        .hud-right {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            align-items: flex-end;
-            pointer-events: auto;
-        }
-
-        /* Oben Mitte: Quest Box */
-        #quest-box {
-            position: absolute;
-            top: 10px;
+            bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(0,0,0,0.6);
+            color: white;
             padding: 10px 20px;
-            border-radius: 15px;
-            border-left: 5px solid #FFD700;
-            color: #333;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-            font-size: 18px;
-            max-width: 300px;
+            border-radius: 20px;
             pointer-events: none;
-            display: none;
-            text-shadow: none;
             text-align: center;
-            transition: all 0.3s ease;
         }
 
-        .hud-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .hud-item {
-            background: rgba(0,0,0,0.5);
-            padding: 8px 15px;
-            border-radius: 25px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            backdrop-filter: blur(4px);
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-
-        button {
-            pointer-events: auto;
-            border: none;
-            border-radius: 50px;
-            font-family: 'Fredoka', sans-serif;
+        #interaction-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.8);
+            padding: 10px 20px;
+            border-radius: 8px;
+            display: none;
             font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 4px 0 rgba(0,0,0,0.2);
-            transition: transform 0.1s;
         }
-        button:active { transform: translateY(4px); box-shadow: none; }
-
-        #drop-btn {
-            background: #e74c3c;
-            color: white;
-            padding: 8px 15px;
-            display: none;
-            font-size: 16px;
-        }
-
-        .icon-btn {
-            background: #3498db;
-            color: white;
-            width: 45px;
-            height: 45px;
-            font-size: 24px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 5px;
-        }
-
-        #sound-btn {
-            background: #9b59b6;
-        }
-
-        #level-screen {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.85);
-            backdrop-filter: blur(5px);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            z-index: 100;
-            text-align: center;
-        }
-
-        #level-screen h1 { margin: 0 0 10px 0; color: #FFD700; font-size: 40px; }
-        
-        #start-btn {
-            background: linear-gradient(to bottom, #27ae60, #219150);
-            color: white;
-            padding: 15px 50px;
-            font-size: 24px;
-            margin-top: 30px;
-            box-shadow: 0 4px 0 #145a32;
-        }
-        
-        #controls-hint {
-            margin-top: 15px;
-            color: #ddd;
-            font-size: 18px;
-        }
-
-        #joystick-touch-zone {
-            position: absolute;
-            bottom: 30px;
-            left: 30px;
-            width: 160px;
-            height: 160px;
-            z-index: 20;
-            border-radius: 50%;
-        }
-
     </style>
 </head>
 <body>
 
-    <div id="ui-layer">
-        <!-- Oben Links -->
-        <div class="hud-left">
-            <div class="hud-item"><span>📅</span> <span id="level-name">Frühling</span></div>
-            <div class="hud-row">
-                <div class="hud-item"><span>🎒</span> <span id="inventory-display">Leer</span></div>
-                <button id="drop-btn" onclick="dropItem()">❌ Ablegen</button>
-            </div>
-            <div class="hud-item"><span>⭐</span> <span id="star-display">0</span> / <span id="target-display">3</span></div>
+<div id="ui-container">
+    <h2>Konfiguration</h2>
+    
+    <div class="config-section">
+        <strong>Mensch</strong>
+        <div class="row">
+            <label>Hautfarbe</label>
+            <input type="color" id="skinColor" value="#ffdbac">
         </div>
-
-        <!-- Oben Mitte -->
-        <div id="quest-box">
-            <strong>Pferdewunsch:</strong><br>
-            <span id="quest-text">Suche ein Pferd!</span>
+        <div class="row">
+            <label>Shirt</label>
+            <input type="color" id="shirtColor" value="#3498db">
         </div>
-
-        <!-- Oben Rechts -->
-        <div class="hud-right">
-            <button id="sound-btn" class="icon-btn" onclick="toggleSound()">🔊</button>
-            <button class="icon-btn" onclick="changeZoom(0.1)">➕</button>
-            <button class="icon-btn" onclick="changeZoom(-0.1)">➖</button>
+        <div class="row">
+            <label>Hose</label>
+            <input type="color" id="pantsColor" value="#2c3e50">
         </div>
     </div>
 
-    <div id="level-screen">
-        <h1 id="screen-title">Pferdehof</h1>
-        <p id="screen-desc">Finde Wasser am Fluss, Möhren auf dem Feld<br>und Äpfel bei den Bäumen.</p>
-        <div id="controls-hint"></div>
-        <button id="start-btn" onclick="startGame()">Losreiten</button>
+    <div class="config-section">
+        <strong>Pferd</strong>
+        <div class="row">
+            <label>Fellfarbe</label>
+            <input type="color" id="horseColor" value="#8b4513">
+        </div>
+        <div class="row">
+            <label>Mähne/Schweif</label>
+            <input type="color" id="maneColor" value="#4a270a">
+        </div>
     </div>
 
-    <div id="joystick-touch-zone"></div>
+    <button id="startBtn">Simulation Starten</button>
+</div>
 
-    <canvas id="gameCanvas"></canvas>
+<div id="controls-hint">
+    WASD / Pfeiltasten: Bewegen | [L]: Leine nehmen/loslassen | Maus: Kamera drehen
+</div>
+
+<div id="interaction-msg">Drücke [L] für die Leine</div>
 
 <script>
-    // --- PWA Service Worker ---
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW Error:', err));
-      });
+    let scene, camera, renderer, player, horse, ground, leash;
+    let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+    let isLeashed = false;
+    let cameraAngle = { phi: Math.PI / 4, theta: Math.PI / 4 };
+    let mouseX = 0, mouseY = 0, isMouseDown = false;
+
+    // Game Objects
+    let playerGroup = new THREE.Group();
+    let horseGroup = new THREE.Group();
+    let trees = [];
+
+    function init() {
+        // Setup Scene
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87ceeb); // Sky blue
+        
+        // Camera
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        // Renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(50, 100, 50);
+        dirLight.castShadow = true;
+        dirLight.shadow.camera.left = -50;
+        dirLight.shadow.camera.right = 50;
+        dirLight.shadow.camera.top = 50;
+        dirLight.shadow.camera.bottom = -50;
+        scene.add(dirLight);
+
+        // Ground
+        const groundGeo = new THREE.PlaneGeometry(200, 200);
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
+        ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Decor: Some Trees
+        for(let i=0; i<30; i++) {
+            createTree(Math.random()*160-80, Math.random()*160-80);
+        }
+
+        createPlayer();
+        createHorse();
+
+        // Leash Line
+        const leashMat = new THREE.LineBasicMaterial({ color: 0x000000 });
+        const leashPoints = [];
+        leashPoints.push(new THREE.Vector3(0, 0, 0));
+        leashPoints.push(new THREE.Vector3(0, 0, 0));
+        const leashGeo = new THREE.BufferGeometry().setFromPoints(leashPoints);
+        leash = new THREE.Line(leashGeo, leashMat);
+        leash.visible = false;
+        scene.add(leash);
+
+        // Event Listeners
+        window.addEventListener('keydown', (e) => handleKey(e.code, true));
+        window.addEventListener('keyup', (e) => handleKey(e.code, false));
+        window.addEventListener('resize', onWindowResize);
+        
+        // Camera Rotation handling
+        window.addEventListener('mousedown', () => isMouseDown = true);
+        window.addEventListener('mouseup', () => isMouseDown = false);
+        window.addEventListener('mousemove', (e) => {
+            if (isMouseDown) {
+                cameraAngle.theta -= e.movementX * 0.01;
+                cameraAngle.phi -= e.movementY * 0.01;
+                cameraAngle.phi = Math.max(0.1, Math.min(Math.PI / 2.1, cameraAngle.phi));
+            }
+        });
+
+        document.getElementById('startBtn').onclick = () => {
+            updateVisuals();
+            document.getElementById('ui-container').style.display = 'none';
+        };
+
+        // Initial update
+        updateVisuals();
+        animate();
     }
 
-    // --- Sound System (Synthesizer) ---
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    const soundCtx = new AudioContext();
-    let soundEnabled = true; // Status für Sound
+    function createTree(x, z) {
+        const treeGroup = new THREE.Group();
+        const trunkGeo = new THREE.CylinderGeometry(0.2, 0.4, 2);
+        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5d4037 });
+        const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+        trunk.position.y = 1;
+        trunk.castShadow = true;
+        treeGroup.add(trunk);
 
-    function toggleSound() {
-        soundEnabled = !soundEnabled;
-        const btn = document.getElementById('sound-btn');
-        btn.innerText = soundEnabled ? "🔊" : "🔇";
-        if(soundEnabled && soundCtx.state === 'suspended') soundCtx.resume();
+        const leavesGeo = new THREE.SphereGeometry(1.2, 8, 8);
+        const leavesMat = new THREE.MeshStandardMaterial({ color: 0x1b5e20 });
+        const leaves = new THREE.Mesh(leavesGeo, leavesMat);
+        leaves.position.y = 2.5;
+        leaves.castShadow = true;
+        treeGroup.add(leaves);
+
+        treeGroup.position.set(x, 0, z);
+        scene.add(treeGroup);
+        trees.push(treeGroup);
     }
-    
-    const Sound = {
-        playTone: (freq, type, duration, vol = 0.1) => {
-            if(!soundEnabled) return;
-            if(soundCtx.state === 'suspended') soundCtx.resume();
-            const osc = soundCtx.createOscillator();
-            const gain = soundCtx.createGain();
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, soundCtx.currentTime);
-            gain.gain.setValueAtTime(vol, soundCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, soundCtx.currentTime + duration);
-            osc.connect(gain);
-            gain.connect(soundCtx.destination);
-            osc.start();
-            osc.stop(soundCtx.currentTime + duration);
-        },
-        playNoise: (duration) => {
-             if(!soundEnabled) return;
-             // Simples Rauschen für Hufgeklapper
-             if(soundCtx.state === 'suspended') soundCtx.resume();
-             const bufferSize = soundCtx.sampleRate * duration;
-             const buffer = soundCtx.createBuffer(1, bufferSize, soundCtx.sampleRate);
-             const data = buffer.getChannelData(0);
-             for (let i = 0; i < bufferSize; i++) {
-                 data[i] = Math.random() * 2 - 1;
-             }
-             const noise = soundCtx.createBufferSource();
-             noise.buffer = buffer;
-             const gain = soundCtx.createGain();
-             gain.gain.setValueAtTime(0.05, soundCtx.currentTime);
-             gain.gain.exponentialRampToValueAtTime(0.01, soundCtx.currentTime + duration);
-             
-             // Lowpass Filter damit es dumpf wie Hufe klingt
-             const filter = soundCtx.createBiquadFilter();
-             filter.type = 'lowpass';
-             filter.frequency.value = 150;
 
-             noise.connect(filter);
-             filter.connect(gain);
-             gain.connect(soundCtx.destination);
-             noise.start();
-        },
-        playNeigh: () => {
-            if(!soundEnabled) return;
-            // Wiehern simulieren (Frequenz Modulation)
-            if(soundCtx.state === 'suspended') soundCtx.resume();
-            const osc = soundCtx.createOscillator();
-            const gain = soundCtx.createGain();
-            osc.type = 'sawtooth';
-            
-            // Pitch Drop
-            osc.frequency.setValueAtTime(800, soundCtx.currentTime);
-            osc.frequency.linearRampToValueAtTime(400, soundCtx.currentTime + 0.4);
-            osc.frequency.linearRampToValueAtTime(600, soundCtx.currentTime + 0.6);
-            osc.frequency.linearRampToValueAtTime(300, soundCtx.currentTime + 1.0);
+    function createPlayer() {
+        // Head
+        const headGeo = new THREE.SphereGeometry(0.25, 16, 16);
+        const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
+        const head = new THREE.Mesh(headGeo, headMat);
+        head.name = "skin";
+        head.position.y = 1.7;
+        playerGroup.add(head);
 
-            // Vibrato (LFO)
-            const lfo = soundCtx.createOscillator();
-            lfo.frequency.value = 15;
-            const lfoGain = soundCtx.createGain();
-            lfoGain.gain.value = 50;
-            lfo.connect(lfoGain);
-            lfoGain.connect(osc.frequency);
-            lfo.start();
+        // Body
+        const bodyGeo = new THREE.BoxGeometry(0.5, 0.7, 0.3);
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3498db });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.name = "shirt";
+        body.position.y = 1.2;
+        playerGroup.add(body);
 
-            gain.gain.setValueAtTime(0.1, soundCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.0, soundCtx.currentTime + 1.0);
+        // Legs
+        const legGeo = new THREE.BoxGeometry(0.2, 0.8, 0.2);
+        const legMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50 });
+        const legR = new THREE.Mesh(legGeo, legMat);
+        legR.name = "pants";
+        legR.position.set(0.15, 0.4, 0);
+        playerGroup.add(legR);
+        
+        const legL = new THREE.Mesh(legGeo, legMat);
+        legL.name = "pants";
+        legL.position.set(-0.15, 0.4, 0);
+        playerGroup.add(legL);
 
-            osc.connect(gain);
-            gain.connect(soundCtx.destination);
-            osc.start();
-            osc.stop(soundCtx.currentTime + 1.0);
-        },
-        playSuccess: () => {
-            if(!soundEnabled) return;
-            Sound.playTone(523.25, 'sine', 0.2, 0.2); // C5
-            setTimeout(() => Sound.playTone(659.25, 'sine', 0.4, 0.2), 100); // E5
-        },
-        playPop: () => {
-            if(!soundEnabled) return;
-            Sound.playTone(400, 'triangle', 0.1, 0.1);
-        },
-        stepTimer: 0
-    };
+        playerGroup.position.set(0, 0, 5);
+        playerGroup.traverse(c => { if(c.isMesh) c.castShadow = true; });
+        scene.add(playerGroup);
+        player = playerGroup;
+    }
 
+    function createHorse() {
+        const horseMat = new THREE.MeshStandardMaterial({ color: 0x8b4513 });
+        const maneMat = new THREE.MeshStandardMaterial({ color: 0x4a270a });
 
-    // --- Setup ---
-    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
+        // Body
+        const bodyGeo = new THREE.BoxGeometry(0.8, 0.8, 1.6);
+        const body = new THREE.Mesh(bodyGeo, horseMat);
+        body.name = "fur";
+        body.position.y = 1;
+        horseGroup.add(body);
 
-    const WORLD_W = 2500;
-    const WORLD_H = 2000;
+        // Neck
+        const neckGeo = new THREE.BoxGeometry(0.4, 0.7, 0.4);
+        const neck = new THREE.Mesh(neckGeo, horseMat);
+        neck.name = "fur";
+        neck.position.set(0, 1.5, 0.7);
+        neck.rotation.x = -0.4;
+        horseGroup.add(neck);
 
-    let gameState = {
-        running: false, level: 0, stars: 0, starsNeeded: 3,
-        horses: [], items: [], terrain: { riverPoints: [], fields: [], trees: [], grassTufts: [] },
-        inventory: null, particles: [], camX: 0, camY: 0, zoom: 1.0,
-        currentQuestHorse: null, stable: { x: 0, y: 0, open: false }, dropCooldown: 0
-    };
+        // Head
+        const headGeo = new THREE.BoxGeometry(0.4, 0.4, 0.6);
+        const head = new THREE.Mesh(headGeo, horseMat);
+        head.name = "fur";
+        head.position.set(0, 1.8, 1.0);
+        horseGroup.add(head);
 
-    const player = { x: 1250, y: 1000, vx: 0, vy: 0, speed: 7, color: '#654321', flip: false, animFrame: 0 };
-    let joy = { active: false, baseX: 110, baseY: 0, stickX: 0, stickY: 0, dx: 0, dy: 0, radius: 60 };
-    const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+        // Legs
+        const legGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.8);
+        const legFL = new THREE.Mesh(legGeo, horseMat);
+        legFL.name = "fur";
+        legFL.position.set(0.25, 0.4, 0.6);
+        horseGroup.add(legFL);
 
-    const itemTypes = {
-        apple: { name: "Apfel", emoji: "🍎", color: "#ff4d4d" },
-        carrot: { name: "Möhre", emoji: "🥕", color: "#ffa500" },
-        water: { name: "Wasser", emoji: "💧", color: "#3498db" },
-        brush: { name: "Bürste", emoji: "🧹", color: "#95a5a6" },
-        hay: { name: "Heu", emoji: "🌾", color: "#f1c40f" }
-    };
+        const legFR = new THREE.Mesh(legGeo, horseMat);
+        legFR.name = "fur";
+        legFR.position.set(-0.25, 0.4, 0.6);
+        horseGroup.add(legFR);
 
-    const seasons = [
-        { name: "Frühling", bg: "#7BC043", treeColor: "#2ecc71", riverColor: "#4fc3f7" },
-        { name: "Sommer", bg: "#6ab04c", treeColor: "#27ae60", riverColor: "#29b6f6" },
-        { name: "Herbst", bg: "#e1b12c", treeColor: "#e67e22", riverColor: "#81d4fa" },
-        { name: "Winter", bg: "#dfe6e9", treeColor: "#b2bec3", riverColor: "#b3e5fc" }
-    ];
+        const legBL = new THREE.Mesh(legGeo, horseMat);
+        legBL.name = "fur";
+        legBL.position.set(0.25, 0.4, -0.6);
+        horseGroup.add(legBL);
 
-    function initUI() {
-        const hint = document.getElementById('controls-hint');
-        const joyZone = document.getElementById('joystick-touch-zone');
-        if (!isTouchDevice) {
-            joyZone.style.display = 'none';
-            hint.innerHTML = "Steuerung: <b>W, A, S, D</b><br>Ablegen: <b>Leertaste</b> oder <b>Q</b>";
+        const legBR = new THREE.Mesh(legGeo, horseMat);
+        legBR.name = "fur";
+        legBR.position.set(-0.25, 0.4, -0.6);
+        horseGroup.add(legBR);
+
+        // Mane
+        const maneGeo = new THREE.BoxGeometry(0.1, 0.8, 0.2);
+        const mane = new THREE.Mesh(maneGeo, maneMat);
+        mane.name = "mane";
+        mane.position.set(0, 1.6, 0.5);
+        horseGroup.add(mane);
+
+        // Tail
+        const tailGeo = new THREE.BoxGeometry(0.1, 0.6, 0.1);
+        const tail = new THREE.Mesh(tailGeo, maneMat);
+        tail.name = "mane";
+        tail.position.set(0, 0.9, -0.85);
+        tail.rotation.x = 0.5;
+        horseGroup.add(tail);
+
+        horseGroup.position.set(3, 0, 3);
+        horseGroup.traverse(c => { if(c.isMesh) c.castShadow = true; });
+        scene.add(horseGroup);
+        horse = horseGroup;
+    }
+
+    function updateVisuals() {
+        const skinC = document.getElementById('skinColor').value;
+        const shirtC = document.getElementById('shirtColor').value;
+        const pantsC = document.getElementById('pantsColor').value;
+        const furC = document.getElementById('horseColor').value;
+        const maneC = document.getElementById('maneColor').value;
+
+        player.traverse(c => {
+            if(c.name === "skin") c.material.color.set(skinC);
+            if(c.name === "shirt") c.material.color.set(shirtC);
+            if(c.name === "pants") c.material.color.set(pantsC);
+        });
+
+        horse.traverse(c => {
+            if(c.name === "fur") c.material.color.set(furC);
+            if(c.name === "mane") c.material.color.set(maneC);
+        });
+    }
+
+    function handleKey(code, isPressed) {
+        switch(code) {
+            case 'ArrowUp':
+            case 'KeyW': moveForward = isPressed; break;
+            case 'ArrowDown':
+            case 'KeyS': moveBackward = isPressed; break;
+            case 'ArrowLeft':
+            case 'KeyA': moveLeft = isPressed; break;
+            case 'ArrowRight':
+            case 'KeyD': moveRight = isPressed; break;
+            case 'KeyL':
+                if (isPressed) toggleLeash();
+                break;
+        }
+    }
+
+    function toggleLeash() {
+        const dist = player.position.distanceTo(horse.position);
+        if (!isLeashed) {
+            if (dist < 3) {
+                isLeashed = true;
+                leash.visible = true;
+            }
         } else {
-            hint.innerHTML = "Benutze den Joystick zum Steuern";
+            isLeashed = false;
+            leash.visible = false;
         }
     }
-    initUI();
 
-    function resize() {
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        joy.baseY = canvas.height - 110; 
-        if(!joy.active) { joy.stickX = joy.baseX; joy.stickY = joy.baseY; }
-    }
-    window.addEventListener('resize', resize); resize();
-    function changeZoom(delta) { gameState.zoom += delta; gameState.zoom = Math.max(0.5, Math.min(1.5, gameState.zoom)); }
-
-    function startGame() { 
-        document.getElementById('level-screen').style.display = 'none'; 
-        // Audio Context starten (User Interaction required)
-        if(soundCtx.state === 'suspended') soundCtx.resume();
-        Sound.playNeigh(); // Begrüßungswiehern
-        initLevel(); 
-        gameState.running = true; 
-        loop(); 
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
-    function initLevel() {
-        gameState.stars = 0; gameState.inventory = null; gameState.currentQuestHorse = null;
-        document.getElementById('quest-box').style.display = 'none'; gameState.stable.open = false;
-        gameState.starsNeeded = 3 + gameState.level; gameState.zoom = 1.0;
-        generateTerrain();
-        let safe = false;
-        while(!safe) {
-            gameState.stable.x = Math.random() * (WORLD_W - 300) + 150; gameState.stable.y = 200; 
-            if(!isNearRiver(gameState.stable.x, gameState.stable.y, 150)) safe = true;
-        }
-        gameState.horses = [];
-        const possibleItems = Object.values(itemTypes);
-        const horseColors = ['#3e2723', '#795548', '#a1887f', '#d7ccc8', '#212121', '#eeeeee'];
-        for(let i=0; i < 4 + gameState.level; i++) {
-            let want = possibleItems[Math.floor(Math.random()*possibleItems.length)];
-            let hx, hy;
-            do { hx = Math.random() * (WORLD_W - 200) + 100; hy = Math.random() * (WORLD_H - 200) + 100; } while(isNearRiver(hx, hy, 100));
-            gameState.horses.push({
-                x: hx, y: hy, want: want, satisfied: false, color: horseColors[Math.floor(Math.random()*horseColors.length)],
-                flip: Math.random() > 0.5, state: 'idle', timer: Math.random() * 200, targetX: hx, targetY: hy,
-                speed: 1 + Math.random() * 1.5, animFrame: 0, idleOffset: Math.random() * 1000
+    function animate() {
+        requestAnimationFrame(animate);
+        
+        // Movement Logic
+        const speed = 0.1;
+        let direction = new THREE.Vector3();
+        
+        if (moveForward || moveBackward || moveLeft || moveRight) {
+            // Get camera orientation for movement direction
+            const forward = new THREE.Vector3();
+            camera.getWorldDirection(forward);
+            forward.y = 0;
+            forward.normalize();
+
+            const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
+
+            if (moveForward) direction.add(forward);
+            if (moveBackward) direction.sub(forward);
+            if (moveLeft) direction.add(right);
+            if (moveRight) direction.sub(right);
+
+            if (direction.length() > 0) {
+                direction.normalize().multiplyScalar(speed);
+                player.position.add(direction);
+                
+                // Rotate player to face move direction
+                const targetRotation = Math.atan2(direction.x, direction.z);
+                player.rotation.y = targetRotation;
+
+                // Procedural Walk Animation (Bobbing)
+                player.children.forEach(child => {
+                    if (child.name === "pants") {
+                        const side = child.position.x > 0 ? 1 : -1;
+                        child.rotation.x = Math.sin(Date.now() * 0.01) * 0.5 * side;
+                    }
+                });
+            }
+        } else {
+            // Reset leg rotation when idle
+            player.children.forEach(child => {
+                if (child.name === "pants") child.rotation.x = 0;
             });
         }
-        gameState.items = [];
-        spawnSpecificItems(itemTypes.water, 6, "river"); spawnSpecificItems(itemTypes.carrot, 6, "field");
-        spawnSpecificItems(itemTypes.apple, 6, "tree"); spawnSpecificItems(itemTypes.hay, 5, "random"); 
-        spawnSpecificItems(itemTypes.brush, 4, "stable"); 
-        updateUI();
-    }
 
-    function generateTerrain() {
-        gameState.terrain.riverPoints = []; gameState.terrain.fields = []; gameState.terrain.trees = []; gameState.terrain.grassTufts = [];
-        for(let x = 0; x <= WORLD_W; x += 30) {
-            let y = (WORLD_H/2) + Math.sin(x / 400) * 300 + Math.sin(x/100)*60;
-            gameState.terrain.riverPoints.push({x:x, y:y});
-        }
-        for(let i=0; i<4; i++) {
-            let fx = Math.random() * (WORLD_W - 400); let fy = Math.random() * (WORLD_H - 400);
-            if(!isNearRiver(fx, fy, 250)) gameState.terrain.fields.push({x: fx, y: fy, w: 220, h: 160});
-        }
-        for(let i=0; i<60; i++) {
-            let tx = Math.random() * WORLD_W; let ty = Math.random() * WORLD_H;
-            if(!isNearRiver(tx, ty, 60)) {
-                let apples = [];
-                if(Math.random() > 0.3) {
-                    let numApples = 2 + Math.floor(Math.random() * 3);
-                    for(let j=0; j<numApples; j++) {
-                        let size = 50 + Math.random()*40;
-                        apples.push({ ox: (Math.random()-0.5) * (size/1.5), oy: -size/2 - Math.random() * (size/3) });
-                    }
-                }
-                gameState.terrain.trees.push({ x: tx, y: ty, size: 50 + Math.random()*40, apples: apples });
-            }
-        }
-        for(let i=0; i<300; i++) gameState.terrain.grassTufts.push({ x: Math.random() * WORLD_W, y: Math.random() * WORLD_H });
-    }
-
-    function spawnSpecificItems(type, count, location) {
-        for(let i=0; i<count; i++) {
-            let x, y; let attempts = 0; let success = false;
-            while(!success && attempts < 20) {
-                attempts++;
-                if(location === "river") {
-                    let pt = gameState.terrain.riverPoints[Math.floor(Math.random() * gameState.terrain.riverPoints.length)];
-                    x = pt.x + (Math.random()-0.5)*70; y = pt.y + (Math.random()-0.5)*70;
-                } else if (location === "field" && gameState.terrain.fields.length > 0) {
-                    let f = gameState.terrain.fields[Math.floor(Math.random()*gameState.terrain.fields.length)];
-                    x = f.x + 20 + Math.random() * (f.w - 40); y = f.y + 20 + Math.random() * (f.h - 40);
-                } else if (location === "tree" && gameState.terrain.trees.length > 0) {
-                    let t = gameState.terrain.trees[Math.floor(Math.random()*gameState.terrain.trees.length)];
-                    x = t.x + (Math.random()-0.5)*80; y = t.y + 40 + (Math.random()-0.5)*20;
-                } else {
-                    x = Math.random() * (WORLD_W - 100) + 50; y = Math.random() * (WORLD_H - 100) + 50;
-                }
-                if(location !== "river" && isNearRiver(x, y, 50)) continue;
-                success = true;
-            }
-            if(success) gameState.items.push({ x: x, y: y, type: type });
-        }
-    }
-
-    function isNearRiver(x, y, dist) { for(let p of gameState.terrain.riverPoints) { if(Math.hypot(x - p.x, y - p.y) < dist) return true; } return false; }
-
-    function dropItem() {
-        if(!gameState.inventory) return;
-        Sound.playPop(); // Sound Effekt
-        const dropX = player.x + (player.flip ? 60 : -60); const dropY = player.y + 20;
-        gameState.items.push({ x: dropX, y: dropY, type: gameState.inventory });
-        createParticles(dropX, dropY, "💨"); gameState.inventory = null; gameState.dropCooldown = 60; updateUI();
-        const box = document.getElementById('quest-box');
-        // Wenn man ein Item ablegt, Text resetten oder verstecken
-        if(gameState.currentQuestHorse && !gameState.currentQuestHorse.satisfied) {
-            updateQuestBox(gameState.currentQuestHorse);
-        } else {
-            box.style.display = 'none';
-        }
-    }
-
-    function loop() { if(!gameState.running) return; update(); draw(); requestAnimationFrame(loop); }
-
-    function update() {
-        if(gameState.dropCooldown > 0) gameState.dropCooldown--;
-
-        let inputDx = 0; let inputDy = 0; let hasInput = false;
-        if(joy.active) { inputDx = joy.dx; inputDy = joy.dy; hasInput = true; } 
-        else {
-            if(keys.w || keys.ArrowUp) inputDy = -1;
-            if(keys.s || keys.ArrowDown) inputDy = 1;
-            if(keys.a || keys.ArrowLeft) inputDx = -1;
-            if(keys.d || keys.ArrowRight) inputDx = 1;
-            if(inputDx !== 0 || inputDy !== 0) { if(inputDx !== 0 && inputDy !== 0) { inputDx *= 0.707; inputDy *= 0.707; } hasInput = true; }
-        }
-
-        if(hasInput) {
-            let tvx = inputDx * player.speed; let tvy = inputDy * player.speed;
-            player.vx += (tvx - player.vx) * 0.15; player.vy += (tvy - player.vy) * 0.15;
-            if(inputDx < -0.1) player.flip = true; if(inputDx > 0.1) player.flip = false;
-            player.animFrame += 0.15;
+        // Horse Follow Logic (Leash)
+        if (isLeashed) {
+            const followDist = 2.0;
+            const horseToPlayer = new THREE.Vector3().subVectors(player.position, horse.position);
+            const dist = horseToPlayer.length();
             
-            // Sound: Hufgeklapper (Rhythmus)
-            Sound.stepTimer++;
-            if(Sound.stepTimer > 20) { // Alle 20 Frames ein Geräusch
-                Sound.playNoise(0.05);
-                Sound.stepTimer = 0;
+            if (dist > followDist) {
+                horseToPlayer.y = 0;
+                horseToPlayer.normalize();
+                horse.position.add(horseToPlayer.multiplyScalar(speed * 0.9));
+                
+                // Horse faces player
+                const horseTargetRotation = Math.atan2(horseToPlayer.x, horseToPlayer.z);
+                horse.rotation.y = THREE.MathUtils.lerp(horse.rotation.y, horseTargetRotation, 0.1);
             }
-        } else { 
-            player.vx *= 0.85; player.vy *= 0.85; player.animFrame = 0; Sound.stepTimer = 0;
+
+            // Update Leash Line
+            const playerHand = player.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+            const horseNeck = horse.position.clone().add(new THREE.Vector3(0, 1.5, 0.5).applyAxisAngle(new THREE.Vector3(0,1,0), horse.rotation.y));
+            
+            const positions = leash.geometry.attributes.position.array;
+            positions[0] = playerHand.x;
+            positions[1] = playerHand.y;
+            positions[2] = playerHand.z;
+            positions[3] = horseNeck.x;
+            positions[4] = horseNeck.y;
+            positions[5] = horseNeck.z;
+            leash.geometry.attributes.position.needsUpdate = true;
         }
 
-        player.x += player.vx; player.y += player.vy;
-        player.x = Math.max(50, Math.min(WORLD_W-50, player.x)); player.y = Math.max(50, Math.min(WORLD_H-50, player.y));
-        let tcx = player.x - canvas.width/2; let tcy = player.y - canvas.height/2;
-        tcx = Math.max(0, Math.min(WORLD_W - canvas.width, tcx)); tcy = Math.max(0, Math.min(WORLD_H - canvas.height, tcy));
-        gameState.camX += (tcx - gameState.camX) * 0.1; gameState.camY += (tcy - gameState.camY) * 0.1;
-
-        for(let h of gameState.horses) {
-            h.timer--;
-            if(h.timer <= 0) {
-                if(h.state === 'idle') {
-                    h.state = 'walk'; h.timer = 100 + Math.random() * 200;
-                    let vt = false; let at = 0;
-                    while(!vt && at < 10) {
-                        at++; let d = 100 + Math.random() * 300; let a = Math.random() * Math.PI * 2;
-                        let tx = h.x + Math.cos(a) * d; let ty = h.y + Math.sin(a) * d;
-                        if(tx > 50 && tx < WORLD_W - 50 && ty > 50 && ty < WORLD_H - 50 && !isNearRiver(tx, ty, 80)) {
-                            h.targetX = tx; h.targetY = ty; vt = true;
-                        }
-                    }
-                    if(!vt) h.state = 'idle';
-                } else { h.state = 'idle'; h.timer = 60 + Math.random() * 120; }
-            }
-            if(h.state === 'walk') {
-                let dx = h.targetX - h.x; let dy = h.targetY - h.y; let dt = Math.hypot(dx, dy);
-                if(dt < 5) { h.state = 'idle'; h.timer = 60 + Math.random() * 60; }
-                else {
-                    let mx = (dx / dt) * h.speed; let my = (dy / dt) * h.speed;
-                    h.x += mx; h.y += my; h.animFrame += 0.1;
-                    if(mx < -0.1) h.flip = true; if(mx > 0.1) h.flip = false;
-                }
-            } else { h.animFrame = 0; }
+        // Show interaction message if near horse
+        const interactMsg = document.getElementById('interaction-msg');
+        if (!isLeashed && player.position.distanceTo(horse.position) < 3) {
+            interactMsg.style.display = 'block';
+        } else {
+            interactMsg.style.display = 'none';
         }
 
-        if(!gameState.inventory && gameState.dropCooldown === 0) {
-            for(let i=0; i<gameState.items.length; i++) {
-                let it = gameState.items[i];
-                if(dist(player.x, player.y, it.x, it.y) < 50) {
-                    gameState.inventory = it.type; gameState.items.splice(i, 1);
-                    Sound.playPop(); // Sound Aufheben
-                    createParticles(player.x, player.y, "✨"); updateUI();
-                    const qb = document.getElementById('quest-box'); qb.style.display = 'block';
-                    document.getElementById('quest-text').innerText = `Bringe ${it.type.name} zu einem Pferd!`;
-                    qb.style.borderLeftColor = it.type.color; break;
-                }
-            }
-        }
-        for(let h of gameState.horses) {
-            if(dist(player.x, player.y, h.x, h.y) < 100 && !h.satisfied) {
-                gameState.currentQuestHorse = h; updateQuestBox(h);
-                if(gameState.inventory && gameState.inventory.name === h.want.name) {
-                    h.satisfied = true; gameState.inventory = null; gameState.stars++;
-                    Sound.playSuccess(); // Sound Erfolg
-                    createParticles(h.x, h.y, "❤️"); createParticles(h.x, h.y, "⭐"); updateUI();
-                    document.getElementById('quest-text').innerText = "Danke! Sehr lecker!";
-                    document.getElementById('quest-box').style.borderLeftColor = "#2ecc71";
-                    if(gameState.stars >= gameState.starsNeeded) gameState.stable.open = true;
-                }
-            }
-        }
-        if(gameState.stable.open && dist(player.x, player.y, gameState.stable.x, gameState.stable.y) < 100) nextLevel();
-        for(let i=gameState.particles.length-1; i>=0; i--) {
-            gameState.particles[i].y -= 1; gameState.particles[i].life -= 0.02;
-            if(gameState.particles[i].life <= 0) gameState.particles.splice(i,1);
-        }
+        // Camera Follow (3rd Person)
+        const radius = 8;
+        camera.position.x = player.position.x + radius * Math.sin(cameraAngle.phi) * Math.sin(cameraAngle.theta);
+        camera.position.y = player.position.y + radius * Math.cos(cameraAngle.phi);
+        camera.position.z = player.position.z + radius * Math.sin(cameraAngle.phi) * Math.cos(cameraAngle.theta);
+        camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+
+        renderer.render(scene, camera);
     }
 
-    function updateQuestBox(horse) {
-        const box = document.getElementById('quest-box'); const text = document.getElementById('quest-text');
-        box.style.display = 'block';
-        if(gameState.inventory && gameState.inventory.name === horse.want.name) {
-             text.innerHTML = `Gib <b>${horse.want.name}</b> ab!`; box.style.borderLeftColor = "#2ecc71";
-        } else { text.innerHTML = `Ich hätte gerne: <br><b>${horse.want.name}</b> ${horse.want.emoji}`; box.style.borderLeftColor = "#FFD700"; }
-    }
-
-    function draw() {
-        const season = seasons[gameState.level % 4];
-        ctx.fillStyle = season.bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.save();
-        ctx.translate(canvas.width/2, canvas.height/2); ctx.scale(gameState.zoom, gameState.zoom);
-        ctx.translate(-canvas.width/2, -canvas.height/2); ctx.translate(-gameState.camX, -gameState.camY);
-
-        ctx.strokeStyle = "rgba(0,0,0,0.1)"; ctx.lineWidth = 2;
-        for(let g of gameState.terrain.grassTufts) {
-            if(inView(g.x, g.y)) { ctx.beginPath(); ctx.moveTo(g.x, g.y); ctx.lineTo(g.x-5, g.y-8); ctx.moveTo(g.x, g.y); ctx.lineTo(g.x+5, g.y-8); ctx.stroke(); }
-        }
-
-        if(gameState.terrain.riverPoints.length > 0) {
-            ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.strokeStyle = "#90A4AE"; ctx.lineWidth = 140;
-            ctx.moveTo(gameState.terrain.riverPoints[0].x, gameState.terrain.riverPoints[0].y);
-            for(let p of gameState.terrain.riverPoints) ctx.lineTo(p.x, p.y); ctx.stroke();
-            ctx.beginPath(); ctx.strokeStyle = season.riverColor; ctx.lineWidth = 120;
-            ctx.moveTo(gameState.terrain.riverPoints[0].x, gameState.terrain.riverPoints[0].y);
-            for(let p of gameState.terrain.riverPoints) ctx.lineTo(p.x, p.y); ctx.stroke();
-            ctx.beginPath(); ctx.strokeStyle = "rgba(255,255,255,0.3)"; ctx.lineWidth = 10; ctx.setLineDash([20, 40]); 
-            ctx.lineDashOffset = -(Date.now()/50)%60;
-            ctx.moveTo(gameState.terrain.riverPoints[0].x, gameState.terrain.riverPoints[0].y);
-            for(let p of gameState.terrain.riverPoints) ctx.lineTo(p.x, p.y); ctx.stroke(); ctx.setLineDash([]); 
-        }
-
-        for(let f of gameState.terrain.fields) {
-            ctx.fillStyle = "#8D6E63"; ctx.fillRect(f.x, f.y, f.w, f.h); ctx.fillStyle = "#6D4C41";
-            for(let fy = f.y + 20; fy < f.y+f.h; fy+=30) ctx.fillRect(f.x+10, fy, f.w-20, 10);
-            ctx.fillStyle = "#A1887F"; for(let cx = f.x; cx <= f.x+f.w; cx+=40) { ctx.fillRect(cx-3, f.y-5, 6, 15); ctx.fillRect(cx-3, f.y+f.h-10, 6, 15); }
-        }
-
-        ctx.fillStyle = "rgba(0,0,0,0.2)";
-        for(let t of gameState.terrain.trees) { if(inView(t.x, t.y)) { ctx.beginPath(); ctx.ellipse(t.x, t.y+10, t.size/2, t.size/4, 0, 0, 6.28); ctx.fill(); } }
-        drawStable();
-        ctx.font = "40px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        for(let it of gameState.items) {
-            if(inView(it.x, it.y)) {
-                ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.ellipse(it.x, it.y+15, 15, 6, 0, 0, 6.28); ctx.fill();
-                ctx.fillText(it.type.emoji, it.x, it.y + Math.sin(Date.now()/300)*5);
-            }
-        }
-        for(let h of gameState.horses) {
-            if(inView(h.x, h.y)) {
-                drawRealisticHorse(ctx, h.x, h.y, h.color, h.flip, false, h.animFrame, h.state === 'walk');
-                if(h.satisfied) { ctx.font = "24px Arial"; ctx.fillText("❤️", h.x, h.y - 80); }
-            }
-        }
-        let pm = Math.abs(player.vx) > 0.5 || Math.abs(player.vy) > 0.5;
-        drawRealisticHorse(ctx, player.x, player.y, player.color, player.flip, true, player.animFrame, pm);
-        if(gameState.inventory) { ctx.font = "30px Arial"; ctx.fillText(gameState.inventory.emoji, player.x, player.y - 95); drawNavArrow(); }
-        for(let t of gameState.terrain.trees) if(inView(t.x, t.y)) drawRefinedTree(t, season.treeColor);
-        for(let p of gameState.particles) { ctx.globalAlpha = p.life; ctx.fillText(p.char, p.x, p.y); }
-        ctx.globalAlpha = 1.0; ctx.restore(); 
-        
-        if (isTouchDevice) drawJoystick();
-    }
-
-    function drawNavArrow() {
-        let target = null; let md = 99999;
-        for(let h of gameState.horses) {
-            if(!h.satisfied && h.want.name === gameState.inventory.name) {
-                let d = dist(player.x, player.y, h.x, h.y); if(d < md) { md = d; target = h; }
-            }
-        }
-        if(target) {
-            let a = Math.atan2(target.y - player.y, target.x - player.x); let ad = 90;
-            let ax = player.x + Math.cos(a)*ad; let ay = player.y + Math.sin(a)*ad;
-            ctx.save(); ctx.translate(ax, ay); ctx.rotate(a); ctx.fillStyle = "#FFD700"; ctx.strokeStyle = "black"; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-10, 10); ctx.lineTo(-10, -10); ctx.closePath(); ctx.fill(); ctx.stroke();
-            ctx.scale(1+Math.sin(Date.now()/150)*0.2, 1+Math.sin(Date.now()/150)*0.2); ctx.restore();
-        }
-    }
-
-    function drawRealisticHorse(ctx, x, y, color, flip, isPlayer, animFrame, isMoving) {
-        ctx.save(); ctx.translate(x, y); if(flip) ctx.scale(-1, 1);
-        let hop = isMoving ? Math.sin(animFrame)*3 : 0;
-        let rl = isMoving ? Math.sin(animFrame) : 0; let fl = isMoving ? Math.sin(animFrame+Math.PI) : 0; 
-        let hb = isMoving ? Math.sin(animFrame*1.5)*2 : Math.sin(Date.now()/600)*2;
-        ctx.translate(0, hop); ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.ellipse(0, 50-hop, 25, 6, 0, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = color; ctx.strokeStyle = color; ctx.lineJoin = "round"; ctx.lineCap = "round";
-        ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(-20, 10); ctx.quadraticCurveTo(-25+rl*10, 25, -22+rl*15, 35); ctx.lineTo(-22+rl*18, 50); ctx.stroke();
-        ctx.fillStyle = "#1a1a1a"; ctx.beginPath(); ctx.fillRect(-24+rl*18, 50, 6, 4); ctx.fill();
-        ctx.strokeStyle = color; ctx.beginPath(); ctx.moveTo(20, 10); ctx.quadraticCurveTo(25+fl*10, 25, 22+fl*12, 35); ctx.lineTo(22+fl*15, 50); ctx.stroke();
-        ctx.fillStyle = "#1a1a1a"; ctx.beginPath(); ctx.fillRect(20+fl*15, 50, 6, 4); ctx.fill();
-        ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(25, 5); ctx.bezierCurveTo(30, 20, 10, 25, -10, 22); ctx.bezierCurveTo(-30, 20, -35, 5, -25, -5); ctx.bezierCurveTo(-15, -10, 10, -10, 25, 5); ctx.fill();
-        let rl2 = isMoving ? Math.sin(animFrame+Math.PI) : 0; ctx.strokeStyle = color;
-        ctx.beginPath(); ctx.moveTo(-15, 10); ctx.quadraticCurveTo(-20+rl2*10, 25, -17+rl2*15, 35); ctx.lineTo(-17+rl2*18, 52); ctx.stroke();
-        ctx.fillStyle = "#1a1a1a"; ctx.beginPath(); ctx.fillRect(-19+rl2*18, 52, 6, 4); ctx.fill();
-        let fl2 = isMoving ? Math.sin(animFrame) : 0; ctx.strokeStyle = color;
-        ctx.beginPath(); ctx.moveTo(15, 10); ctx.quadraticCurveTo(20+fl2*10, 25, 17+fl2*12, 35); ctx.lineTo(17+fl2*15, 52); ctx.stroke();
-        ctx.fillStyle = "#1a1a1a"; ctx.beginPath(); ctx.fillRect(15+fl2*15, 52, 6, 4); ctx.fill();
-        
-        // --- Neuer Hals: Noch näher am Körper ---
-        ctx.save(); 
-        // X: 16 (vorher 22), rückt Hals näher an die Körpermitte (0,0)
-        ctx.translate(16, -6+hb); 
-        ctx.rotate(-0.2); 
-        ctx.fillStyle = color;
-        ctx.beginPath(); 
-        // Angepasster Pfad, damit der Hals sauber am Körper anliegt
-        ctx.moveTo(-10, 15); 
-        ctx.lineTo(0, -25); 
-        ctx.lineTo(10, -20); 
-        ctx.lineTo(12, 15); 
-        ctx.fill();
-
-        ctx.beginPath(); ctx.arc(6, -25, 9, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.ellipse(13, -22, 12, 7, 0.2, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.arc(20, -23, 2, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(-2, -32); ctx.lineTo(1, -42); ctx.lineTo(6, -32); ctx.fill(); 
-        ctx.beginPath(); ctx.moveTo(-6,-30); ctx.lineTo(-8,-40); ctx.lineTo(0, -30); ctx.fill(); 
-        ctx.fillStyle = "#2c2c2c"; ctx.beginPath(); ctx.moveTo(-4,-35); ctx.quadraticCurveTo(-15,-25,-10,0); ctx.lineTo(0,-25); ctx.fill();
-        ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(6,-27,3.5,0,Math.PI*2); ctx.fill();
-        ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(7,-27,1.5,0,Math.PI*2); ctx.fill();
-        ctx.restore(); 
-        
-        ctx.strokeStyle = "#2c2c2c"; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-28, 0);
-        let tw = isMoving ? Math.sin(animFrame*2)*5 : Math.sin(Date.now()/300)*3;
-        ctx.quadraticCurveTo(-45, 10, -40+tw, 35); ctx.stroke();
-        if(isPlayer) { ctx.fillStyle = "#c0392b"; ctx.beginPath(); ctx.moveTo(5, -5); ctx.quadraticCurveTo(0, 0, -15, -5); ctx.quadraticCurveTo(-10, 10, 5, 10); ctx.fill(); }
-        ctx.restore();
-    }
-
-    function drawRefinedTree(t, color) {
-        const {x, y, size, apples} = t; ctx.fillStyle = "#795548"; ctx.beginPath();
-        ctx.moveTo(x-8, y); ctx.lineTo(x+8, y); ctx.lineTo(x+6, y - size/2); ctx.lineTo(x-6, y - size/2); ctx.fill();
-        ctx.fillStyle = color; let layers = 3;
-        for(let i=0; i<layers; i++) { let s = size-(i*10); let o = size/2+(i*15); ctx.beginPath(); ctx.arc(x, y-o, s/2, 0, Math.PI*2); ctx.fill(); }
-        if(apples) {
-            ctx.fillStyle = "#c0392b";
-            for(let a of apples) {
-                ctx.beginPath(); ctx.arc(x+a.ox, y+a.oy, 5, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.beginPath(); ctx.arc(x+a.ox+1, y+a.oy-1, 2, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = "#c0392b";
-            }
-        }
-    }
-
-    function drawStable() {
-        if(inView(gameState.stable.x, gameState.stable.y)) {
-            const x = gameState.stable.x; const y = gameState.stable.y;
-            ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.beginPath(); ctx.ellipse(x, y+35, 50, 15, 0, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "#d35400"; ctx.fillRect(x-40, y-30, 80, 60);
-            ctx.fillStyle = "rgba(0,0,0,0.1)"; for(let py = y-30; py < y+30; py+=10) ctx.fillRect(x-40, py, 80, 2);
-            ctx.fillStyle = "#5d4037"; ctx.beginPath(); ctx.moveTo(x-55, y-30); ctx.lineTo(x, y-80); ctx.lineTo(x+55, y-30); ctx.fill();
-            ctx.fillStyle = gameState.stable.open ? "#27ae60" : "#3e2723"; ctx.beginPath(); ctx.roundRect(x-15, y, 30, 30, 5); ctx.fill();
-            ctx.strokeStyle = "#5d4037"; ctx.lineWidth = 3; ctx.stroke();
-            if(gameState.stable.open) {
-                ctx.fillStyle = "white"; ctx.font = "bold 20px Fredoka"; ctx.fillText("Schlafen!", x, y - 90);
-                let b = Math.sin(Date.now()/200)*5; ctx.fillText("⬇️", x, y - 120 + b);
-            }
-        }
-    }
-
-    function drawJoystick() {
-        ctx.beginPath(); ctx.arc(joy.baseX, joy.baseY, joy.radius, 0, Math.PI*2);
-        ctx.fillStyle = "rgba(255,255,255,0.2)"; ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 4; ctx.fill(); ctx.stroke();
-        let x = joy.active ? joy.stickX : joy.baseX; let y = joy.active ? joy.stickY : joy.baseY;
-        ctx.beginPath(); ctx.arc(x, y, 25, 0, Math.PI*2); ctx.fillStyle = "white"; ctx.fill();
-    }
-
-    function dist(x1, y1, x2, y2) { return Math.hypot(x1-x2, y1-y2); }
-    function inView(x, y) { const b = 200/gameState.zoom; return x > gameState.camX-b && x < gameState.camX+(canvas.width/gameState.zoom)+b && y > gameState.camY-b && y < gameState.camY+(canvas.height/gameState.zoom)+b; }
-    function createParticles(x, y, char) { for(let i=0; i<8; i++) gameState.particles.push({x:x+(Math.random()-0.5)*40, y:y, char:char, life:1.0}); }
-    function updateUI() {
-        document.getElementById('inventory-display').innerText = gameState.inventory ? gameState.inventory.name : "Nichts";
-        document.getElementById('star-display').innerText = gameState.stars; document.getElementById('target-display').innerText = gameState.starsNeeded;
-        document.getElementById('level-name').innerText = seasons[gameState.level % 4].name;
-        document.getElementById('drop-btn').style.display = gameState.inventory ? "block" : "none";
-    }
-    function nextLevel() {
-        gameState.running = false; gameState.level++;
-        document.getElementById('level-screen').style.display = 'flex';
-        document.getElementById('screen-title').innerText = "Gute Nacht!";
-        document.getElementById('screen-desc').innerText = "Ein neuer Tag beginnt...";
-        document.getElementById('start-btn').innerText = "Weiter";
-    }
-
-    const tz = document.getElementById('joystick-touch-zone');
-    tz.addEventListener('touchstart', (e) => { e.preventDefault(); sj(e.touches[0].clientX, e.touches[0].clientY); });
-    tz.addEventListener('touchmove', (e) => { e.preventDefault(); mj(e.touches[0].clientX, e.touches[0].clientY); });
-    tz.addEventListener('touchend', ej);
-    if(isTouchDevice) {
-        tz.addEventListener('mousedown', (e) => sj(e.clientX, e.clientY));
-        window.addEventListener('mousemove', (e) => mj(e.clientX, e.clientY));
-        window.addEventListener('mouseup', ej);
-    }
-    
-    function sj(cx, cy) { joy.active = true; mj(cx, cy); }
-    function mj(cx, cy) {
-        if(!joy.active) return; let dx = cx - joy.baseX; let dy = cy - joy.baseY; let d = Math.sqrt(dx*dx + dy*dy);
-        if(d > joy.radius) { let r = joy.radius/d; dx *= r; dy *= r; }
-        joy.stickX = joy.baseX+dx; joy.stickY = joy.baseY+dy; joy.dx = dx/joy.radius; joy.dy = dy/joy.radius;
-    }
-    function ej() { joy.active = false; joy.stickX = joy.baseX; joy.stickY = joy.baseY; joy.dx = 0; joy.dy = 0; }
-
-    window.addEventListener('keydown', e => {
-        if(e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.ArrowUp = true;
-        if(e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.ArrowDown = true;
-        if(e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.ArrowLeft = true;
-        if(e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.ArrowRight = true;
-        if(e.key === 'q' || e.key === 'Q' || e.key === ' ') dropItem(); // Q oder Space
-    });
-
-    window.addEventListener('keyup', e => {
-        if(e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.ArrowUp = false;
-        if(e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.ArrowDown = false;
-        if(e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.ArrowLeft = false;
-        if(e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.ArrowRight = false;
-    });
-
+    window.onload = init;
 </script>
+
 </body>
 </html>
