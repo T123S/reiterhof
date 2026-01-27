@@ -370,20 +370,26 @@
     // --- TERRAIN MATH & FLATTENING ---
     function getTerrainHeight(x, z) {
         // FLATTENING ZONES to prevent clipping
+        // Increased buffers significantly to 8 units to ensure objects sit on flat ground
         
         // 1. STABLE AREA
-        if(dist(x, z, ZONES.STABLE.x, ZONES.STABLE.z) < ZONES.STABLE.r + 2) {
+        if(dist(x, z, ZONES.STABLE.x, ZONES.STABLE.z) < ZONES.STABLE.r + 8) {
             return getBaseTerrainHeight(ZONES.STABLE.x, ZONES.STABLE.z);
         }
 
         // 2. ROUNDPEN AREA
-        if(dist(x, z, ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z) < ZONES.ROUNDPEN.r + 2) {
+        if(dist(x, z, ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z) < ZONES.ROUNDPEN.r + 8) {
             return getBaseTerrainHeight(ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z);
         }
 
-        // 3. ARENA AREA (Square check)
-        if(x > ZONES.ARENA.x - 18 && x < ZONES.ARENA.x + 18 && 
-           z > ZONES.ARENA.z - 18 && z < ZONES.ARENA.z + 18) {
+        // 3. PASTURE (WEIDE) - Now Flattened
+        if(dist(x, z, ZONES.PASTURE.x, ZONES.PASTURE.z) < ZONES.PASTURE.r + 8) {
+            return getBaseTerrainHeight(ZONES.PASTURE.x, ZONES.PASTURE.z);
+        }
+
+        // 4. ARENA AREA (Square check)
+        if(x > ZONES.ARENA.x - 25 && x < ZONES.ARENA.x + 25 && 
+           z > ZONES.ARENA.z - 25 && z < ZONES.ARENA.z + 25) {
             return getBaseTerrainHeight(ZONES.ARENA.x, ZONES.ARENA.z);
         }
 
@@ -439,7 +445,7 @@
         stableGroup.add(roof);
         
         const floor = new THREE.Mesh(new THREE.CylinderGeometry(12, 12, 0.2, 32), new THREE.MeshStandardMaterial({color:0x6d4c41}));
-        floor.position.y = 0.1;
+        floor.position.y = 0.2; // Raised to avoid z-fighting
         stableGroup.add(floor);
         
         const stableY = getTerrainHeight(ZONES.STABLE.x, ZONES.STABLE.z);
@@ -451,13 +457,14 @@
         const penY = getTerrainHeight(ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z);
         
         const penFloor = new THREE.Mesh(new THREE.CylinderGeometry(ZONES.ROUNDPEN.r, ZONES.ROUNDPEN.r, 0.1, 32), sandMat);
-        penFloor.position.set(ZONES.ROUNDPEN.x, penY + 0.1, ZONES.ROUNDPEN.z);
+        penFloor.position.set(ZONES.ROUNDPEN.x, penY + 0.2, ZONES.ROUNDPEN.z); // Raised
         penFloor.receiveShadow = true;
         scene.add(penFloor);
         createCurvedFence(ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z, ZONES.ROUNDPEN.r, penY);
 
         // PASTURE
         const pastureY = getTerrainHeight(ZONES.PASTURE.x, ZONES.PASTURE.z);
+        // Pasture is now flat too, so we pass true for isLow (false) but can treat coords as flat
         createFenceRect(ZONES.PASTURE.x, ZONES.PASTURE.z, 30, 30, false, pastureY);
         for(let i=0; i<60; i++) {
             const fx = ZONES.PASTURE.x + (Math.random()-0.5)*25;
@@ -468,7 +475,7 @@
         // ARENA
         const arenaY = getTerrainHeight(ZONES.ARENA.x, ZONES.ARENA.z);
         const arenaFloor = new THREE.Mesh(new THREE.BoxGeometry(34, 0.1, 34), sandMat);
-        arenaFloor.position.set(ZONES.ARENA.x, arenaY + 0.1, ZONES.ARENA.z);
+        arenaFloor.position.set(ZONES.ARENA.x, arenaY + 0.2, ZONES.ARENA.z); // Raised
         arenaFloor.receiveShadow = true;
         scene.add(arenaFloor);
         createFenceRect(ZONES.ARENA.x, ZONES.ARENA.z, 34, 34, true, arenaY);
@@ -503,11 +510,11 @@
                 const nextTheta = ((i+1)/count) * Math.PI * 2;
                 const nx = cx + Math.cos(nextTheta) * r;
                 const nz = cz + Math.sin(nextTheta) * r;
-                const ny = getTerrainHeight(nx, nz);
+                // const ny = getTerrainHeight(nx, nz); // Not needed if flat, but safe to keep
                 
                 const midX = (x + nx)/2;
                 const midZ = (z + nz)/2;
-                const midY = (y + ny)/2;
+                const midY = y; // Simplified since it's flat now
                 const dist = Math.hypot(nx-x, nz-z);
                 const angle = Math.atan2(nz-z, nx-x);
                 
@@ -539,30 +546,24 @@
             scene.add(post);
         });
         
-        // Rails 
+        // Rails - Simplified now that zones are flat
         const railMat = new THREE.MeshStandardMaterial({color: 0xffffff});
-        // Note: For flattened zones, we can rely on baseY more safely
-        const useFlat = (cx === ZONES.ARENA.x); // If Arena, it's flat
         
         const railT = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, w, 8), railMat);
         railT.rotation.z = Math.PI/2; 
-        let ry = useFlat ? baseY + height - 0.2 : getTerrainHeight(cx, cz-h/2) + height-0.2;
-        railT.position.set(cx, ry, cz - h/2); scene.add(railT);
+        railT.position.set(cx, baseY + height - 0.2, cz - h/2); scene.add(railT);
         
         const railB = railT.clone(); 
         railB.position.z = cz + h/2; 
-        ry = useFlat ? baseY + height - 0.2 : getTerrainHeight(cx, cz+h/2) + height-0.2;
-        railB.position.y = ry; scene.add(railB);
+        railB.position.y = baseY + height - 0.2; scene.add(railB);
         
         const railL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, h, 8), railMat);
         railL.rotation.x = Math.PI/2; 
-        ry = useFlat ? baseY + height - 0.2 : getTerrainHeight(cx-w/2, cz) + height-0.2;
-        railL.position.set(cx - w/2, ry, cz); scene.add(railL);
+        railL.position.set(cx - w/2, baseY + height - 0.2, cz); scene.add(railL);
         
         const railR = railL.clone(); 
         railR.position.x = cx + w/2; 
-        ry = useFlat ? baseY + height - 0.2 : getTerrainHeight(cx+w/2, cz) + height-0.2;
-        railR.position.y = ry; scene.add(railR);
+        railR.position.y = baseY + height - 0.2; scene.add(railR);
     }
 
     function createDetailedTree(x, z) {
