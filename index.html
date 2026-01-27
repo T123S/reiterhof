@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D Pferde-Simulator - Mobile & Fixes</title>
-    <!-- Reverted to r128 for better stability in this environment -->
+    <title>3D Pferde-Simulator - V8: Fehlerbehebung & Natürlichkeit</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #87ceeb; user-select: none; -webkit-touch-callout: none; }
@@ -16,143 +15,133 @@
             position: absolute;
             top: 20px; left: 20px;
             background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(5px);
             padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            max-width: 280px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.5);
+            max-width: 300px;
             z-index: 10;
+            transition: opacity 0.5s;
         }
         @media (max-width: 600px) {
-            #config-panel {
-                width: 80%;
-                left: 10%;
-                padding: 10px;
-                font-size: 0.9em;
-            }
+            #config-panel { width: 85%; left: 7.5%; padding: 15px; font-size: 0.9em; }
         }
 
-        h2 { margin: 0 0 10px 0; color: #2c3e50; font-size: 1.2rem; }
-        .row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; align-items: center; }
-        input[type="color"] { border: none; width: 40px; height: 30px; cursor: pointer; background: none; padding: 0; }
+        h2 { margin: 0 0 15px 0; color: #4a4a4a; font-size: 1.4rem; font-weight: 600; text-align: center; }
         
-        button.start-btn {
-            width: 100%; padding: 10px; background: #27ae60; color: white; 
-            border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px;
-            font-size: 1rem;
+        .selection-group { margin-bottom: 15px; }
+        .selection-label { font-size: 13px; color: #666; margin-bottom: 5px; font-weight: 600; }
+        .swatch-row { display: flex; gap: 8px; justify-content: center; }
+        
+        .swatch {
+            width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+            border: 2px solid transparent; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: transform 0.2s, border-color 0.2s;
+            position: relative;
         }
-        button.start-btn:hover { background: #219150; }
+        .swatch:hover { transform: scale(1.1); }
+        .swatch.selected { border-color: #333; transform: scale(1.15); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        
+        .swatch-dual {
+            background: linear-gradient(135deg, var(--c1) 50%, var(--c2) 50%);
+        }
+
+        button.start-btn {
+            width: 100%; padding: 12px; background: linear-gradient(135deg, #66bb6a, #43a047); color: white; 
+            border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px;
+            font-size: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.1s;
+        }
+        button.start-btn:active { transform: scale(0.98); }
+
+        #audio-toggle {
+            pointer-events: auto;
+            position: absolute; top: 20px; left: 340px;
+            background: rgba(255,255,255,0.8); padding: 10px; border-radius: 50%;
+            cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+            font-size: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 10;
+        }
+        @media (max-width: 600px) { #audio-toggle { left: auto; right: 20px; top: 80px; } }
 
         #status-bar {
             position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.7); color: white; padding: 10px 25px;
-            border-radius: 20px; font-weight: bold; font-size: 16px;
-            display: none; z-index: 5; white-space: nowrap;
+            background: rgba(0,0,0,0.6); color: white; padding: 8px 20px;
+            border-radius: 30px; font-weight: 500; font-size: 14px;
+            display: none; z-index: 5; white-space: nowrap; backdrop-filter: blur(4px);
         }
 
         #controls-hint {
             position: absolute; bottom: 20px; left: 20px;
-            background: rgba(0,0,0,0.6); color: white; padding: 15px;
-            border-radius: 8px; font-size: 14px; line-height: 1.6;
-            z-index: 5;
+            background: rgba(0,0,0,0.5); color: white; padding: 15px;
+            border-radius: 12px; font-size: 13px; line-height: 1.6;
+            z-index: 5; backdrop-filter: blur(4px);
         }
-        @media (max-width: 800px) {
-            #controls-hint { display: none; } /* Hide text hints on mobile, use on-screen controls */
-        }
+        @media (max-width: 800px) { #controls-hint { display: none; } }
 
         #minimap-container {
             position: absolute; top: 20px; right: 20px;
-            width: 200px; height: 200px;
-            background: rgba(0, 0, 0, 0.5);
+            width: 180px; height: 180px;
+            background: rgba(30, 40, 30, 0.6);
             border-radius: 50%;
-            border: 4px solid #fff;
+            border: 3px solid rgba(255,255,255,0.8);
             overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            z-index: 5;
-            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 5; backdrop-filter: blur(2px);
         }
         @media (max-width: 600px) {
-            #minimap-container {
-                width: 120px;
-                height: 120px;
-                top: 10px;
-                right: 10px;
-                border-width: 2px;
-            }
+            #minimap-container { width: 110px; height: 110px; top: 10px; right: 10px; border-width: 2px; }
         }
         #minimap { width: 100%; height: 100%; display: block; }
 
         #bubble {
             position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
-            background: white; padding: 15px 30px; border-radius: 50px;
-            border: 3px solid #333; font-weight: bold; font-size: 20px;
+            background: white; padding: 12px 24px; border-radius: 20px;
+            border-bottom: 4px solid #ddd; font-weight: bold; font-size: 18px; color: #333;
             display: none; z-index: 20;
-            box-shadow: 2px 2px 10px rgba(0,0,0,0.2);
-            pointer-events: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1); pointer-events: none;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
+        @keyframes popIn { from { transform: translate(-50%, -40%) scale(0.5); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
 
         #feeding-modal {
             pointer-events: auto; display: none;
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #fff; padding: 25px; border-radius: 15px;
-            box-shadow: 0 0 30px rgba(0,0,0,0.5); text-align: center; width: 300px;
-            z-index: 30;
+            background: rgba(255,255,255,0.95); padding: 30px; border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3); text-align: center; width: 280px;
+            z-index: 30; backdrop-filter: blur(5px);
         }
         .food-btn {
-            background: #f0f0f0; border: 2px solid #ddd; padding: 10px; margin: 5px;
-            border-radius: 8px; cursor: pointer; font-size: 24px; transition: 0.2s;
+            background: #fff; border: 1px solid #eee; padding: 15px; margin: 5px;
+            border-radius: 12px; cursor: pointer; font-size: 28px; transition: 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
-        .food-btn:hover { background: #e0e0e0; transform: scale(1.1); }
-        #food-request { font-size: 40px; margin: 10px 0; }
+        .food-btn:hover { transform: translateY(-3px); box-shadow: 0 5px 10px rgba(0,0,0,0.1); background: #f9f9f9; }
+        #food-request { font-size: 50px; margin: 15px 0; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.1)); }
 
-        /* --- MOBILE CONTROLS --- */
-        .mobile-ctrl {
-            pointer-events: auto;
-            position: absolute;
-            z-index: 20;
-            display: none; /* Shown via JS or Media Query if needed, but we'll force block for touch detection */
-        }
-        @media (hover: none) and (pointer: coarse), (max-width: 800px) {
-            .mobile-ctrl { display: block; }
-        }
+        .mobile-ctrl { pointer-events: auto; position: absolute; z-index: 20; display: none; }
+        @media (hover: none) and (pointer: coarse), (max-width: 800px) { .mobile-ctrl { display: block; } }
 
-        /* D-PAD */
-        #dpad {
-            bottom: 30px; left: 30px;
-            width: 150px; height: 150px;
-        }
+        #dpad { bottom: 30px; left: 30px; width: 140px; height: 140px; }
         .d-btn {
-            position: absolute;
-            width: 50px; height: 50px;
-            background: rgba(255, 255, 255, 0.3);
-            border: 2px solid rgba(255, 255, 255, 0.6);
-            border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 24px; color: white; user-select: none;
+            position: absolute; width: 45px; height: 45px;
+            background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 12px; display: flex; align-items: center; justify-content: center;
+            font-size: 20px; color: white; backdrop-filter: blur(4px);
         }
-        .d-btn:active { background: rgba(255, 255, 255, 0.6); }
-        #btn-up { top: 0; left: 50px; }
-        #btn-down { bottom: 0; left: 50px; }
-        #btn-left { top: 50px; left: 0; }
-        #btn-right { top: 50px; right: 0; }
+        .d-btn:active { background: rgba(255, 255, 255, 0.5); }
+        #btn-up { top: 0; left: 47.5px; } #btn-down { bottom: 0; left: 47.5px; }
+        #btn-left { top: 47.5px; left: 0; } #btn-right { top: 47.5px; right: 0; }
 
-        /* ACTION BUTTONS */
-        #actions {
-            bottom: 30px; right: 30px;
-            display: flex; flex-direction: column; gap: 15px; align-items: flex-end;
-        }
+        #actions { bottom: 30px; right: 30px; display: flex; flex-direction: column; gap: 12px; align-items: flex-end; }
         .action-btn {
-            width: 60px; height: 60px;
-            background: rgba(0, 0, 0, 0.4);
-            border: 2px solid white;
-            border-radius: 50%;
-            color: white; font-weight: bold; font-size: 14px;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            width: 55px; height: 55px; background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 50%;
+            color: white; font-weight: bold; font-size: 16px; display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(4px); box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
-        .action-btn:active { background: rgba(0, 0, 0, 0.7); transform: scale(0.95); }
-        .trick-row { display: flex; gap: 10px; }
-        .trick-btn { width: 40px; height: 40px; font-size: 12px; background: rgba(230, 126, 34, 0.6); }
-
+        .action-btn:active { transform: scale(0.9); background: rgba(255, 255, 255, 0.4); }
+        .trick-row { display: flex; gap: 8px; }
+        .trick-btn { width: 40px; height: 40px; font-size: 14px; background: rgba(255, 165, 0, 0.3); }
     </style>
 </head>
 <body>
@@ -161,22 +150,25 @@
     <div id="config-panel">
         <h2>Pferdehof Sim</h2>
         
-        <div style="border-bottom:1px solid #eee; margin-bottom:10px; padding-bottom:5px;">
-            <strong>Dein Reiter</strong>
-            <div class="row"><label>Haut</label><input type="color" id="skinColor" value="#ffdbac"></div>
-            <div class="row"><label>Oberteil</label><input type="color" id="shirtColor" value="#e74c3c"></div>
-            <div class="row"><label>Hose</label><input type="color" id="pantsColor" value="#34495e"></div>
+        <div class="selection-group">
+            <div class="selection-label">Outfit</div>
+            <div class="swatch-row" id="outfit-swatches"></div>
         </div>
 
-        <div style="margin-bottom:10px;">
-            <strong>Dein Pferd</strong>
-            <div class="row"><label>Fell</label><input type="color" id="horseColor" value="#5d4037"></div>
-            <div class="row"><label>Mähne</label><input type="color" id="maneColor" value="#1a1a1a"></div>
+        <div class="selection-group">
+            <div class="selection-label">Haut & Haar</div>
+            <div class="swatch-row" id="skin-swatches"></div>
         </div>
 
-        <button class="start-btn" id="startBtn">Hof betreten</button>
+        <div class="selection-group">
+            <div class="selection-label">Pferd</div>
+            <div class="swatch-row" id="horse-swatches"></div>
+        </div>
+
+        <button class="start-btn" id="startBtn">Ton an & Starten</button>
     </div>
 
+    <div id="audio-toggle">🔇</div>
     <div id="status-bar">Bereit</div>
     <div id="bubble">Wieherr!</div>
     
@@ -184,7 +176,6 @@
         <canvas id="minimap" width="200" height="200"></canvas>
     </div>
 
-    <!-- Desktop Hints -->
     <div id="controls-hint">
         <strong>Steuerung:</strong><br>
         WASD / Pfeile: Bewegen<br>
@@ -194,7 +185,6 @@
         Maus: Kamera drehen
     </div>
 
-    <!-- Mobile Controls -->
     <div id="dpad" class="mobile-ctrl">
         <div id="btn-up" class="d-btn">▲</div>
         <div id="btn-down" class="d-btn">▼</div>
@@ -208,129 +198,177 @@
             <div class="action-btn trick-btn" id="btn-t2">2</div>
             <div class="action-btn trick-btn" id="btn-t3">3</div>
         </div>
-        <div class="action-btn" id="btn-feed" style="background:rgba(46, 204, 113, 0.5)">F</div>
-        <div class="action-btn" id="btn-leash" style="background:rgba(52, 152, 219, 0.5)">L</div>
+        <div class="action-btn" id="btn-feed" style="background:rgba(46, 204, 113, 0.4)">F</div>
+        <div class="action-btn" id="btn-leash" style="background:rgba(52, 152, 219, 0.4)">L</div>
     </div>
 
     <div id="feeding-modal">
-        <h3>Fütterungszeit!</h3>
+        <h3>Hungrig?</h3>
         <p>Das Pferd möchte:</p>
         <div id="food-request">🍎</div>
-        <p>Wähle das richtige Futter:</p>
         <div>
             <button class="food-btn" onclick="feedHorse('🍎')">🍎</button>
             <button class="food-btn" onclick="feedHorse('🥕')">🥕</button>
             <button class="food-btn" onclick="feedHorse('🌾')">🌾</button>
         </div>
-        <button onclick="closeFeedMenu()" style="margin-top:15px; padding:5px 15px; cursor:pointer;">Schließen</button>
+        <button onclick="closeFeedMenu()" style="margin-top:20px; padding:10px 20px; cursor:pointer; background:#eee; border:none; border-radius:8px;">Schließen</button>
     </div>
 </div>
 
 <script>
-    // --- THREE.JS VARIABLES ---
-    let scene, camera, renderer;
-    let player, horse, leashLine;
-    let minimapCtx;
-    
-    // Game State
-    let isLeashed = false;
-    let gameState = "FREE"; 
-    let horseState = "IDLE"; 
-    let activeTaskTimer = 0;
-    
-    // Zones - Colors are for minimap
-    const ZONES = {
-        STABLE: { x: 30, z: -30, r: 10, color: "#8d6e63", label: "Stall" },
-        ROUNDPEN: { x: -30, z: -30, r: 12, color: "#e6cea0", label: "Rondell" },
-        PASTURE: { x: -30, z: 30, r: 18, color: "#7cb342", label: "Weide" },
-        ARENA: { x: 30, z: 30, r: 15, color: "#f0e68c", label: "Reitplatz" }
+    // --- PALETTES ---
+    const PALETTES = {
+        PLAYER: {
+            CLASSIC: { shirt: "#3498db", pants: "#2c3e50" },
+            CASUAL: { shirt: "#e74c3c", pants: "#34495e" },
+            ELEGANT: { shirt: "#fdfefe", pants: "#d7ccc8" },
+            NATURE: { shirt: "#66bb6a", pants: "#5d4037" }
+        },
+        SKIN: {
+            LIGHT: { skin: "#ffdbac", hair: "#5d4037" },
+            TAN: { skin: "#d2b48c", hair: "#e6cea0" },
+            DARK: { skin: "#8d6e63", hair: "#1a1a1a" },
+            PALE: { skin: "#ffe0bd", hair: "#a93226" }
+        },
+        HORSE: {
+            BAY: { fur: "#6d4c41", mane: "#1a1a1a" },
+            BLACK: { fur: "#212121", mane: "#000000" },
+            CHESTNUT: { fur: "#a1887f", mane: "#8d6e63" },
+            GREY: { fur: "#f5f5f5", mane: "#757575" },
+            PALOMINO: { fur: "#ffecb3", mane: "#fdfefe" }
+        }
     };
 
-    // Camera & Input
-    let cameraAngle = { phi: Math.PI/3.5, theta: Math.PI/4, dist: 12 };
+    let selectedSettings = { outfit: 'CLASSIC', skin: 'LIGHT', horse: 'BAY' };
+
+    function initUI() {
+        const createSwatches = (containerId, category, key) => {
+            const container = document.getElementById(containerId);
+            for (let id in PALETTES[category]) {
+                const p = PALETTES[category][id];
+                const el = document.createElement('div');
+                el.className = 'swatch';
+                if (category === 'PLAYER') {
+                    el.classList.add('swatch-dual');
+                    el.style.setProperty('--c1', p.shirt);
+                    el.style.setProperty('--c2', p.pants);
+                } else if (category === 'SKIN') {
+                    el.classList.add('swatch-dual');
+                    el.style.setProperty('--c1', p.skin);
+                    el.style.setProperty('--c2', p.hair);
+                } else {
+                    el.style.backgroundColor = p.fur;
+                }
+                if (selectedSettings[key] === id) el.classList.add('selected');
+                el.onclick = () => {
+                    selectedSettings[key] = id;
+                    Array.from(container.children).forEach(c => c.classList.remove('selected'));
+                    el.classList.add('selected');
+                };
+                container.appendChild(el);
+            }
+        };
+        createSwatches('outfit-swatches', 'PLAYER', 'outfit');
+        createSwatches('skin-swatches', 'SKIN', 'skin');
+        createSwatches('horse-swatches', 'HORSE', 'horse');
+    }
+
+    const AudioSys = {
+        ctx: null, enabled: false,
+        init: function() { window.AudioContext = window.AudioContext||window.webkitAudioContext; this.ctx = new AudioContext(); this.enabled = true; document.getElementById('audio-toggle').innerText = "🔊"; },
+        toggle: function() { if(!this.ctx) this.init(); else if(this.ctx.state === 'suspended') { this.ctx.resume(); this.enabled = true; document.getElementById('audio-toggle').innerText = "🔊"; } else { this.ctx.suspend(); this.enabled = false; document.getElementById('audio-toggle').innerText = "🔇"; } },
+        playTone: function(f,t,d,v=0.1) { if(!this.enabled)return; const o=this.ctx.createOscillator(); const g=this.ctx.createGain(); o.type=t; o.frequency.value=f; g.gain.setValueAtTime(v,this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.01,this.ctx.currentTime+d); o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime+d); },
+        playStep: function() { if(!this.enabled)return; const b=this.ctx.createBuffer(1,this.ctx.sampleRate*0.1,this.ctx.sampleRate); const d=b.getChannelData(0); for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1; const n=this.ctx.createBufferSource(); n.buffer=b; const f=this.ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=150; const g=this.ctx.createGain(); g.gain.setValueAtTime(0.3,this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.01,this.ctx.currentTime+0.1); n.connect(f); f.connect(g); g.connect(this.ctx.destination); n.start(); },
+        playNeigh: function() { if(!this.enabled)return; const o=this.ctx.createOscillator(); const g=this.ctx.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(800,this.ctx.currentTime); o.frequency.linearRampToValueAtTime(400,this.ctx.currentTime+0.6); const v=this.ctx.createOscillator(); v.frequency.value=10; const vg=this.ctx.createGain(); vg.gain.value=50; v.connect(vg); vg.connect(o.frequency); v.start(); g.gain.setValueAtTime(0.1,this.ctx.currentTime); g.gain.linearRampToValueAtTime(0,this.ctx.currentTime+0.6); o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime+0.6); },
+        playEat: function() { this.playTone(200,'square',0.1,0.05); setTimeout(()=>this.playTone(150,'square',0.1,0.05),150); }
+    };
+
+    let scene, camera, renderer, player, horse, leashLine, stableDoorGroup;
+    let stableMaterials = [];
+    let minimapCtx;
+    let birds = []; 
+    let isLeashed = false, gameState = "FREE", horseState = "IDLE"; 
+    let activeTaskTimer = 0, stepTimer = 0; 
+    let cameraAngle = { phi: Math.PI/3.2, theta: Math.PI/4, dist: 14 };
     let keys = { w: false, s: false, a: false, d: false };
     let mouse = { x: 0, y: 0, down: false };
-    let touchStart = { x:0, y:0 }; // For touch camera rotation
+    let touchStart = { x:0, y:0 };
     let clock; 
 
-    function init() {
-        clock = new THREE.Clock(); 
+    const ZONES = {
+        STABLE: { x: 50, z: -50, r: 20, color: "#8d6e63", label: "Stall" },
+        ROUNDPEN: { x: -40, z: -40, r: 12, color: "#e6cea0", label: "Rondell" },
+        PASTURE: { x: -40, z: 40, r: 20, color: "#7cb342", label: "Weide" },
+        ARENA: { x: 40, z: 40, r: 18, color: "#f0e68c", label: "Reitplatz" },
+        POND: { x: -60, z: 0, r: 10, color: "#29b6f6", label: "Teich" }
+    };
 
+    function init() {
+        initUI();
+        clock = new THREE.Clock(); 
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb);
-        scene.fog = new THREE.Fog(0x87ceeb, 20, 120);
+        scene.fog = new THREE.Fog(0x87ceeb, 80, 200); 
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputEncoding = THREE.sRGBEncoding;
         document.body.appendChild(renderer.domElement);
 
-        camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 300);
+        camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 500);
 
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambientLight);
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+        hemiLight.position.set(0, 200, 0);
+        scene.add(hemiLight);
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
-        dirLight.position.set(60, 100, 40);
+        const dirLight = new THREE.DirectionalLight(0xffdfba, 1.1);
+        dirLight.position.set(80, 120, 60);
         dirLight.castShadow = true;
         dirLight.shadow.mapSize.width = 2048;
         dirLight.shadow.mapSize.height = 2048;
-        dirLight.shadow.camera.left = -80;
-        dirLight.shadow.camera.right = 80;
-        dirLight.shadow.camera.top = 80;
-        dirLight.shadow.camera.bottom = -80;
+        const d = 120;
+        dirLight.shadow.camera.left = -d; dirLight.shadow.camera.right = d;
+        dirLight.shadow.camera.top = d; dirLight.shadow.camera.bottom = -d;
         dirLight.shadow.bias = -0.0005;
         scene.add(dirLight);
 
-        // Minimap
-        const minimapCanvas = document.getElementById('minimap');
-        minimapCtx = minimapCanvas.getContext('2d');
+        minimapCtx = document.getElementById('minimap').getContext('2d');
 
         createEnvironment();
         createPlayer();
-        createHorse();
+        createImprovedHorse();
         createLeash();
-        createClouds();
+        
+        for(let i=0; i<8; i++) birds.push(new Bird());
 
-        // Keyboard Inputs
         window.addEventListener('keydown', onKeyDown);
         window.addEventListener('keyup', onKeyUp);
-        
-        // Mouse Camera
         window.addEventListener('mousedown', (e) => mouse.down = true);
         window.addEventListener('mouseup', () => mouse.down = false);
         window.addEventListener('mousemove', onMouseMove);
         
-        // Touch Camera (Swipe on background)
         document.body.addEventListener('touchstart', (e) => {
             if(e.target.tagName !== 'BUTTON' && !e.target.classList.contains('d-btn') && !e.target.classList.contains('action-btn')) {
-                touchStart.x = e.touches[0].clientX;
-                touchStart.y = e.touches[0].clientY;
-                mouse.down = true; // reusing mouse logic flag for logic simplicity
+                touchStart.x = e.touches[0].clientX; touchStart.y = e.touches[0].clientY; mouse.down = true; 
             }
         }, {passive: false});
-        
         document.body.addEventListener('touchmove', (e) => {
             if(mouse.down) {
                 const dx = e.touches[0].clientX - touchStart.x;
                 const dy = e.touches[0].clientY - touchStart.y;
-                touchStart.x = e.touches[0].clientX;
-                touchStart.y = e.touches[0].clientY;
-                
-                // Reuse mouse move logic
-                cameraAngle.theta -= dx * 0.005;
-                cameraAngle.phi -= dy * 0.005;
+                touchStart.x = e.touches[0].clientX; touchStart.y = e.touches[0].clientY;
+                cameraAngle.theta -= dx * 0.005; cameraAngle.phi -= dy * 0.005;
                 cameraAngle.phi = Math.max(0.1, Math.min(Math.PI/2 - 0.1, cameraAngle.phi));
             }
         }, {passive: false});
-        
         document.body.addEventListener('touchend', () => mouse.down = false);
-
         window.addEventListener('resize', onResize);
 
         setupMobileControls();
+        document.getElementById('audio-toggle').onclick = () => AudioSys.toggle();
+        
         animate();
     }
 
@@ -338,480 +376,395 @@
         const bindBtn = (id, key) => {
             const el = document.getElementById(id);
             if(!el) return;
-            el.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; });
-            el.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
-            el.addEventListener('mousedown', (e) => { e.preventDefault(); keys[key] = true; });
-            el.addEventListener('mouseup', (e) => { e.preventDefault(); keys[key] = false; });
+            const press = (e) => { if(e.cancelable) e.preventDefault(); keys[key] = true; };
+            const release = (e) => { if(e.cancelable) e.preventDefault(); keys[key] = false; };
+            el.addEventListener('touchstart', press); el.addEventListener('touchend', release);
+            el.addEventListener('mousedown', press); el.addEventListener('mouseup', release);
         };
-
-        bindBtn('btn-up', 'w');
-        bindBtn('btn-down', 's');
-        bindBtn('btn-left', 'a');
-        bindBtn('btn-right', 'd');
-
-        // Actions
-        document.getElementById('btn-leash').addEventListener('touchstart', (e) => { e.preventDefault(); toggleLeash(); });
-        document.getElementById('btn-leash').addEventListener('click', (e) => { toggleLeash(); });
-
-        document.getElementById('btn-feed').addEventListener('touchstart', (e) => { e.preventDefault(); tryFeed(); });
-        document.getElementById('btn-feed').addEventListener('click', (e) => { tryFeed(); });
-
+        bindBtn('btn-up', 'w'); bindBtn('btn-down', 's'); bindBtn('btn-left', 'a'); bindBtn('btn-right', 'd');
+        const btnLeash = document.getElementById('btn-leash');
+        const toggleL = (e) => { e.preventDefault(); toggleLeash(); };
+        btnLeash.addEventListener('touchstart', toggleL); btnLeash.addEventListener('mousedown', toggleL);
+        const btnFeed = document.getElementById('btn-feed');
+        const doFeed = (e) => { e.preventDefault(); tryFeed(); };
+        btnFeed.addEventListener('touchstart', doFeed); btnFeed.addEventListener('mousedown', doFeed);
         const trickBind = (id, type) => {
             const el = document.getElementById(id);
-            const fn = () => { if(horseState === "GROUNDWORK") doTrick(type); };
-            el.addEventListener('touchstart', (e) => { e.preventDefault(); fn(); });
-            el.addEventListener('click', fn);
+            const fn = (e) => { e.preventDefault(); if(horseState==="GROUNDWORK") doTrick(type); };
+            el.addEventListener('touchstart', fn); el.addEventListener('mousedown', fn);
         };
-        trickBind('btn-t1', 'REAR');
-        trickBind('btn-t2', 'BOW');
-        trickBind('btn-t3', 'SPIN');
+        trickBind('btn-t1', 'REAR'); trickBind('btn-t2', 'BOW'); trickBind('btn-t3', 'SPIN');
     }
 
-    // --- TERRAIN MATH & FLATTENING ---
     function getTerrainHeight(x, z) {
-        // FLATTENING ZONES to prevent clipping
-        // Increased buffers significantly to 8 units to ensure objects sit on flat ground
-        
-        // 1. STABLE AREA
-        if(dist(x, z, ZONES.STABLE.x, ZONES.STABLE.z) < ZONES.STABLE.r + 8) {
-            return getBaseTerrainHeight(ZONES.STABLE.x, ZONES.STABLE.z);
+        const distCenter = Math.sqrt(x*x + z*z);
+        const flatRadius = 80; const blendRadius = 120; 
+        let h = 0;
+        if(distCenter > flatRadius) {
+            const factor = Math.min(1, (distCenter - flatRadius) / (blendRadius - flatRadius));
+            const noise = Math.sin(x*0.05)*Math.cos(z*0.05)*4 + Math.sin(x*0.02)*Math.cos(z*0.02)*10;
+            h = noise * factor;
         }
-
-        // 2. ROUNDPEN AREA
-        if(dist(x, z, ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z) < ZONES.ROUNDPEN.r + 8) {
-            return getBaseTerrainHeight(ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z);
-        }
-
-        // 3. PASTURE (WEIDE) - Now Flattened
-        if(dist(x, z, ZONES.PASTURE.x, ZONES.PASTURE.z) < ZONES.PASTURE.r + 8) {
-            return getBaseTerrainHeight(ZONES.PASTURE.x, ZONES.PASTURE.z);
-        }
-
-        // 4. ARENA AREA (Square check)
-        if(x > ZONES.ARENA.x - 25 && x < ZONES.ARENA.x + 25 && 
-           z > ZONES.ARENA.z - 25 && z < ZONES.ARENA.z + 25) {
-            return getBaseTerrainHeight(ZONES.ARENA.x, ZONES.ARENA.z);
-        }
-
-        // Default wavy terrain
-        return getBaseTerrainHeight(x, z);
+        const dPond = dist(x, z, ZONES.POND.x, ZONES.POND.z);
+        if(dPond < 15) return THREE.MathUtils.lerp(-2.5, h, Math.min(1, dPond/15));
+        return h;
     }
-
-    function getBaseTerrainHeight(x, z) {
-        return Math.sin(x*0.04) * Math.cos(z*0.04) * 2 + 
-               Math.sin(x*0.1) * Math.cos(z*0.1) * 0.5;
-    }
-
-    // --- CREATION FUNCTIONS ---
 
     function createEnvironment() {
-        // Soft Terrain
-        const groundGeo = new THREE.PlaneGeometry(250, 250, 128, 128);
-        const pos = groundGeo.attributes.position;
-        for(let i=0; i<pos.count; i++) {
-            const x = pos.getX(i);
-            const z = pos.getY(i);
-            const h = getTerrainHeight(x, z); // Now uses flattening logic
+        const geo = new THREE.PlaneGeometry(350, 350, 128, 128);
+        const count = geo.attributes.position.count;
+        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+        const pos = geo.attributes.position; const colors = geo.attributes.color;
+        const cGreen = new THREE.Color(0x4caf50); const cDarkGreen = new THREE.Color(0x388e3c);
+        const cDirt = new THREE.Color(0x795548); const cSand = new THREE.Color(0xe6cea0);
+
+        for(let i=0; i<count; i++) {
+            const x = pos.getX(i); const z = pos.getY(i); const h = getTerrainHeight(x, z);
             pos.setZ(i, h);
+            let c = new THREE.Color().lerpColors(cDarkGreen, cGreen, Math.random()*0.5 + 0.5);
+            const d = Math.sqrt(x*x + z*z);
+            if(d > 80) c.lerp(cDirt, (h/10));
+            if(dist(x,z,ZONES.STABLE.x,ZONES.STABLE.z) < 25) c.lerp(cDirt, 0.8);
+            if(dist(x,z,ZONES.ARENA.x,ZONES.ARENA.z) < 20) c.lerp(cSand, 0.5);
+            if(dist(x,z,ZONES.POND.x,ZONES.POND.z) < 13) c.setHex(0xe6cea0);
+            colors.setXYZ(i, c.r, c.g, c.b);
         }
-        groundGeo.computeVertexNormals();
-        const groundMat = new THREE.MeshStandardMaterial({ 
-            color: 0x558b2f, 
-            roughness: 1,
-            flatShading: false
-        });
-        const ground = new THREE.Mesh(groundGeo, groundMat);
+        geo.computeVertexNormals();
+        const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: false });
+        const ground = new THREE.Mesh(geo, mat);
         ground.rotation.x = -Math.PI / 2;
         ground.receiveShadow = true;
         scene.add(ground);
 
-        // STABLE
-        const stableGroup = new THREE.Group();
-        const stableMat = new THREE.MeshStandardMaterial({color: 0x8d6e63});
-        const roofMat = new THREE.MeshStandardMaterial({color: 0x5d4037});
-        
-        const postGeo = new THREE.CylinderGeometry(0.3, 0.3, 5, 8);
-        [[-8,-8], [8,-8], [-8,8], [8,8]].forEach(p => {
-            const post = new THREE.Mesh(postGeo, stableMat);
-            post.position.set(p[0], 2.5, p[1]);
-            post.castShadow = true;
-            stableGroup.add(post);
-        });
-        const roofGeo = new THREE.ConeGeometry(14, 6, 4);
-        const roof = new THREE.Mesh(roofGeo, roofMat);
-        roof.rotation.y = Math.PI/4;
-        roof.position.y = 7;
-        roof.castShadow = true;
-        stableGroup.add(roof);
-        
-        const floor = new THREE.Mesh(new THREE.CylinderGeometry(12, 12, 0.2, 32), new THREE.MeshStandardMaterial({color:0x6d4c41}));
-        floor.position.y = 0.2; // Raised to avoid z-fighting
-        stableGroup.add(floor);
-        
-        const stableY = getTerrainHeight(ZONES.STABLE.x, ZONES.STABLE.z);
-        stableGroup.position.set(ZONES.STABLE.x, stableY, ZONES.STABLE.z);
-        scene.add(stableGroup);
+        const water = new THREE.Mesh(new THREE.CircleGeometry(11, 32), new THREE.MeshStandardMaterial({color: 0x4fc3f7, opacity:0.8, transparent:true}));
+        water.rotation.x = -Math.PI/2; water.position.set(ZONES.POND.x, -1.8, ZONES.POND.z);
+        scene.add(water);
 
-        // ROUNDPEN
-        const sandMat = new THREE.MeshStandardMaterial({ color: 0xe6cea0, roughness: 1 });
-        const penY = getTerrainHeight(ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z);
-        
-        const penFloor = new THREE.Mesh(new THREE.CylinderGeometry(ZONES.ROUNDPEN.r, ZONES.ROUNDPEN.r, 0.1, 32), sandMat);
-        penFloor.position.set(ZONES.ROUNDPEN.x, penY + 0.2, ZONES.ROUNDPEN.z); // Raised
-        penFloor.receiveShadow = true;
-        scene.add(penFloor);
-        createCurvedFence(ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z, ZONES.ROUNDPEN.r, penY);
+        createBigStable();
+        createRoundpen();
+        createPasture();
+        createArena();
 
-        // PASTURE
-        const pastureY = getTerrainHeight(ZONES.PASTURE.x, ZONES.PASTURE.z);
-        // Pasture is now flat too, so we pass true for isLow (false) but can treat coords as flat
-        createFenceRect(ZONES.PASTURE.x, ZONES.PASTURE.z, 30, 30, false, pastureY);
-        for(let i=0; i<60; i++) {
-            const fx = ZONES.PASTURE.x + (Math.random()-0.5)*25;
-            const fz = ZONES.PASTURE.z + (Math.random()-0.5)*25;
-            createFlower(fx, fz);
+        for(let i=0; i<100; i++) {
+            const r = 300; const x = (Math.random()-0.5)*r; const z = (Math.random()-0.5)*r;
+            if(Math.sqrt(x*x+z*z) < 90) continue; 
+            createBeautifulTree(x, z);
         }
-
-        // ARENA
-        const arenaY = getTerrainHeight(ZONES.ARENA.x, ZONES.ARENA.z);
-        const arenaFloor = new THREE.Mesh(new THREE.BoxGeometry(34, 0.1, 34), sandMat);
-        arenaFloor.position.set(ZONES.ARENA.x, arenaY + 0.2, ZONES.ARENA.z); // Raised
-        arenaFloor.receiveShadow = true;
-        scene.add(arenaFloor);
-        createFenceRect(ZONES.ARENA.x, ZONES.ARENA.z, 34, 34, true, arenaY);
-
-        // NATURE
-        for(let i=0; i<60; i++) {
-            const x = (Math.random()-0.5) * 200;
-            const z = (Math.random()-0.5) * 200;
-            if(Math.abs(x) < 50 && Math.abs(z) < 50) continue;
-            createDetailedTree(x, z);
-        }
-        for(let i=0; i<30; i++) {
-            createDetailedRock((Math.random()-0.5)*220, (Math.random()-0.5)*220);
+        for(let i=0; i<150; i++) {
+            const x = (Math.random()-0.5) * 160; const z = (Math.random()-0.5) * 160;
+            if(dist(x,z,ZONES.STABLE.x,ZONES.STABLE.z)<30) continue;
+            if(dist(x,z,ZONES.ARENA.x,ZONES.ARENA.z)<25) continue;
+            if(dist(x,z,ZONES.POND.x,ZONES.POND.z)<15) continue;
+            if(Math.random()>0.7) createFlower(x, z); else createGrassTuft(x, z);
         }
     }
 
-    function createCurvedFence(cx, cz, r, baseY) {
-        const count = 30;
-        const woodMat = new THREE.MeshStandardMaterial({color: 0x8d6e63});
-        for(let i=0; i<count; i++) {
-            const theta = (i/count) * Math.PI * 2;
-            const x = cx + Math.cos(theta) * r;
-            const z = cz + Math.sin(theta) * r;
-            const y = getTerrainHeight(x, z); // Will match flattened terrain now
-            
-            const post = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.8, 8), woodMat);
-            post.position.set(x, y + 0.9, z);
-            post.castShadow = true;
-            scene.add(post);
-
-            if(i < count) {
-                const nextTheta = ((i+1)/count) * Math.PI * 2;
-                const nx = cx + Math.cos(nextTheta) * r;
-                const nz = cz + Math.sin(nextTheta) * r;
-                // const ny = getTerrainHeight(nx, nz); // Not needed if flat, but safe to keep
-                
-                const midX = (x + nx)/2;
-                const midZ = (z + nz)/2;
-                const midY = y; // Simplified since it's flat now
-                const dist = Math.hypot(nx-x, nz-z);
-                const angle = Math.atan2(nz-z, nx-x);
-                
-                const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, dist, 6), new THREE.MeshStandardMaterial({color: 0xffffff}));
-                rail.rotation.z = Math.PI/2;
-                rail.rotation.y = -angle;
-                rail.position.set(midX, midY + 1.4, midZ);
-                scene.add(rail);
-            }
-        }
-    }
-
-    function createFenceRect(cx, cz, w, h, isLow, baseY) {
-        const height = isLow ? 1.0 : 1.5;
-        const postMat = new THREE.MeshStandardMaterial({color: 0xffffff});
-        
-        const corners = [
-            {x: cx - w/2, z: cz - h/2}, {x: cx + w/2, z: cz - h/2},
-            {x: cx - w/2, z: cz + h/2}, {x: cx + w/2, z: cz + h/2},
-            {x: cx, z: cz - h/2}, {x: cx, z: cz + h/2},
-            {x: cx - w/2, z: cz}, {x: cx + w/2, z: cz}
-        ];
-        
-        corners.forEach(p => {
-            const py = getTerrainHeight(p.x, p.z);
-            const post = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, height, 12), postMat);
-            post.position.set(p.x, py + height/2, p.z);
-            post.castShadow = true;
-            scene.add(post);
-        });
-        
-        // Rails - Simplified now that zones are flat
-        const railMat = new THREE.MeshStandardMaterial({color: 0xffffff});
-        
-        const railT = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, w, 8), railMat);
-        railT.rotation.z = Math.PI/2; 
-        railT.position.set(cx, baseY + height - 0.2, cz - h/2); scene.add(railT);
-        
-        const railB = railT.clone(); 
-        railB.position.z = cz + h/2; 
-        railB.position.y = baseY + height - 0.2; scene.add(railB);
-        
-        const railL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, h, 8), railMat);
-        railL.rotation.x = Math.PI/2; 
-        railL.position.set(cx - w/2, baseY + height - 0.2, cz); scene.add(railL);
-        
-        const railR = railL.clone(); 
-        railR.position.x = cx + w/2; 
-        railR.position.y = baseY + height - 0.2; scene.add(railR);
-    }
-
-    function createDetailedTree(x, z) {
+    function createBeautifulTree(x, z) {
         const y = getTerrainHeight(x, z);
         const group = new THREE.Group();
-        const trunkGeo = new THREE.CylinderGeometry(0.3, 0.5, 2.5, 8);
-        const trunkMat = new THREE.MeshStandardMaterial({color: 0x4e342e});
-        const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-        trunk.position.y = 1.25;
-        trunk.castShadow = true;
-        group.add(trunk);
-
-        const leavesMat = new THREE.MeshStandardMaterial({color: 0x2e7d32, flatShading: false});
-        const positions = [[0, 3.5, 0], [1, 2.8, 0], [-1, 2.8, 0.5], [0, 2.8, -1], [0.5, 4.2, 0]];
-        positions.forEach(p => {
-            const size = 1 + Math.random();
-            const leaf = new THREE.Mesh(new THREE.SphereGeometry(size, 8, 8), leavesMat);
-            leaf.position.set(p[0]*0.8, p[1], p[2]*0.8);
-            leaf.castShadow = true;
-            group.add(leaf);
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 3.5, 7), new THREE.MeshStandardMaterial({color: 0x5d4037}));
+        trunk.position.y = 1.75; trunk.castShadow = true; group.add(trunk);
+        const leafMat = new THREE.MeshStandardMaterial({color: 0x2e7d32});
+        [[0,3.5,0,1.8], [0,4.5,0,1.4], [0,5.2,0,1.0], [1,3.8,0,1.2], [-1,4.0,0,1.2]].forEach(d => {
+            const l = new THREE.Mesh(new THREE.DodecahedronGeometry(d[3], 0), leafMat);
+            l.position.set(d[0], d[1], d[2]); l.castShadow=true; group.add(l);
         });
-
-        const s = 1 + Math.random() * 0.5;
-        group.scale.set(s,s,s);
-        group.position.set(x, y, z);
-        group.rotation.y = Math.random() * Math.PI;
+        const s = 0.8 + Math.random()*0.6; group.scale.set(s,s,s); group.position.set(x, y, z);
         scene.add(group);
     }
 
-    function createDetailedRock(x, z) {
-        const y = getTerrainHeight(x, z);
-        const geo = new THREE.SphereGeometry(1, 4, 3);
-        const mat = new THREE.MeshStandardMaterial({color: 0x808080, roughness: 0.9});
-        const rock = new THREE.Mesh(geo, mat);
-        rock.position.set(x, y + 0.3, z);
-        rock.scale.set(0.5 + Math.random(), 0.3 + Math.random()*0.3, 0.5 + Math.random());
-        rock.castShadow = true;
-        scene.add(rock);
+    function createGrassTuft(x, z) {
+        const y = getTerrainHeight(x, z); const geo = new THREE.ConeGeometry(0.1, 0.4, 3); const mat = new THREE.MeshStandardMaterial({color: 0x689f38});
+        for(let i=0; i<3; i++) {
+            const b = new THREE.Mesh(geo, mat); b.position.set(x+(Math.random()-0.5)*0.2, y+0.2, z+(Math.random()-0.5)*0.2); b.rotation.x=(Math.random()-0.5)*0.5; scene.add(b);
+        }
     }
 
     function createFlower(x, z) {
         const y = getTerrainHeight(x, z);
-        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.4), new THREE.MeshBasicMaterial({color: 0x00ff00}));
-        stem.position.set(x, y + 0.2, z);
-        scene.add(stem);
-        const petalColor = Math.random() > 0.5 ? 0xffeb3b : 0xe91e63;
-        const flower = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), new THREE.MeshBasicMaterial({color: petalColor}));
-        flower.position.set(x, y + 0.4, z);
-        flower.scale.y = 0.5;
-        scene.add(flower);
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.4), new THREE.MeshBasicMaterial({color: 0x4caf50}));
+        stem.position.set(x, y+0.2, z); scene.add(stem);
+        const col = [0xffeb3b, 0xe91e63, 0x9c27b0, 0x03a9f4][Math.floor(Math.random()*4)];
+        const bloom = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12,0), new THREE.MeshBasicMaterial({color: col}));
+        bloom.position.set(x, y+0.4, z); scene.add(bloom);
     }
 
-    function createClouds() {
-        const cloudGeo = new THREE.SphereGeometry(2, 16, 16);
-        const cloudMat = new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.9});
-        for(let i=0; i<12; i++) {
-            const group = new THREE.Group();
-            for(let j=0; j<5; j++) {
-                const p = new THREE.Mesh(cloudGeo, cloudMat);
-                p.position.set((Math.random()-0.5)*5, (Math.random()-0.5)*1.5, (Math.random()-0.5)*3);
-                p.scale.set(1 + Math.random(), 0.8, 1);
-                group.add(p);
+    function createBigStable() {
+        const s = ZONES.STABLE; const y = getTerrainHeight(s.x, s.z); const group = new THREE.Group();
+        
+        const wallMat = new THREE.MeshStandardMaterial({color: 0x8d6e63, side: THREE.DoubleSide, transparent: true, opacity: 1.0});
+        const roofMat = new THREE.MeshStandardMaterial({color: 0x3e2723, transparent: true, opacity: 1.0});
+        stableMaterials = [wallMat, roofMat];
+
+        const floorMat = new THREE.MeshStandardMaterial({color: 0x6d4c41});
+        const strawMat = new THREE.MeshStandardMaterial({color: 0xffd54f});
+
+        const width = 20, depth = 28, height = 6;
+        const floor = new THREE.Mesh(new THREE.BoxGeometry(width, 0.2, depth), floorMat);
+        floor.position.y = 0.1; floor.receiveShadow = true; group.add(floor);
+        const thickness = 0.5;
+        
+        const back = new THREE.Mesh(new THREE.BoxGeometry(width, height, thickness), wallMat);
+        back.position.set(0, height/2, -depth/2); back.castShadow=true; group.add(back);
+        const left = new THREE.Mesh(new THREE.BoxGeometry(thickness, height, depth), wallMat);
+        left.position.set(-width/2, height/2, 0); left.castShadow=true; group.add(left);
+        const right = new THREE.Mesh(new THREE.BoxGeometry(thickness, height, depth), wallMat);
+        right.position.set(width/2, height/2, 0); right.castShadow=true; group.add(right);
+        const frontLeft = new THREE.Mesh(new THREE.BoxGeometry(width/2 - 3, height, thickness), wallMat);
+        frontLeft.position.set(-width/4 - 1.5, height/2, depth/2); frontLeft.castShadow=true; group.add(frontLeft);
+        const frontRight = new THREE.Mesh(new THREE.BoxGeometry(width/2 - 3, height, thickness), wallMat);
+        frontRight.position.set(width/4 + 1.5, height/2, depth/2); frontRight.castShadow=true; group.add(frontRight);
+
+        const roofL = new THREE.Mesh(new THREE.BoxGeometry(width/1.2, 0.4, depth+2), roofMat);
+        roofL.position.set(-width/4, height+2, 0); roofL.rotation.z = Math.PI/6; group.add(roofL);
+        const roofR = new THREE.Mesh(new THREE.BoxGeometry(width/1.2, 0.4, depth+2), roofMat);
+        roofR.position.set(width/4, height+2, 0); roofR.rotation.z = -Math.PI/6; group.add(roofR);
+
+        const boxX = 5, boxZ = -5;
+        const boxFloor = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), strawMat);
+        boxFloor.rotation.x = -Math.PI/2; boxFloor.position.set(boxX, 0.25, boxZ); group.add(boxFloor);
+        const part1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.5, 8), wallMat);
+        part1.position.set(boxX - 4, 1.25, boxZ); group.add(part1);
+        const part2 = new THREE.Mesh(new THREE.BoxGeometry(8, 2.5, 0.2), wallMat);
+        part2.position.set(boxX, 1.25, boxZ + 4); group.add(part2);
+
+        const barrelGeo = new THREE.CylinderGeometry(1, 1, 1.5, 12); const barrelMat = new THREE.MeshStandardMaterial({color:0x5d4037});
+        const b1 = new THREE.Mesh(barrelGeo, barrelMat); b1.position.set(-7, 0.75, 8); group.add(b1);
+        const b2 = new THREE.Mesh(barrelGeo, barrelMat); b2.position.set(-8.5, 0.75, 7); group.add(b2);
+        
+        stableDoorGroup = new THREE.Group();
+        stableDoorGroup.position.set(-3, 0, depth/2); 
+        const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(6, 5, 0.3), new THREE.MeshStandardMaterial({color:0x4e342e}));
+        doorMesh.position.set(3, 2.5, 0); stableDoorGroup.add(doorMesh); group.add(stableDoorGroup);
+
+        group.position.set(s.x, y, s.z);
+        scene.add(group);
+    }
+
+    function createRoundpen() {
+        const z = ZONES.ROUNDPEN; const y = getTerrainHeight(z.x, z.z);
+        const mat = new THREE.MeshStandardMaterial({color: 0xe6cea0});
+        const floor = new THREE.Mesh(new THREE.CylinderGeometry(z.r, z.r, 0.2, 32), mat);
+        floor.position.set(z.x, y+0.1, z.z); floor.receiveShadow = true; scene.add(floor);
+        createCurvedFence(z.x, z.z, z.r, y);
+    }
+    function createPasture() {
+        const z = ZONES.PASTURE; const y = getTerrainHeight(z.x, z.z);
+        createFenceRect(z.x, z.z, 35, 35, false, y);
+        const trough = new THREE.Mesh(new THREE.BoxGeometry(3, 0.8, 1.5), new THREE.MeshStandardMaterial({color:0x555}));
+        trough.position.set(z.x+5, y+0.4, z.z+5); scene.add(trough);
+        const w = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.3), new THREE.MeshBasicMaterial({color:0x4fc3f7}));
+        w.rotation.x = -Math.PI/2; w.position.set(z.x+5, y+0.7, z.z+5); scene.add(w);
+    }
+    function createArena() {
+        const z = ZONES.ARENA; const y = getTerrainHeight(z.x, z.z);
+        const mat = new THREE.MeshStandardMaterial({color: 0xf0e68c});
+        const floor = new THREE.Mesh(new THREE.BoxGeometry(34, 0.2, 34), mat);
+        floor.position.set(z.x, y+0.1, z.z); floor.receiveShadow = true; scene.add(floor);
+        createFenceRect(z.x, z.z, 34, 34, true, y);
+        ['A','B','C','E'].forEach((l, i) => {
+            const letter = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1, 0.5), new THREE.MeshStandardMaterial({color:0xffffff}));
+            const lx = i<2 ? z.x : (i==2?z.x-16:z.x+16); const lz = i<2 ? (i==0?z.z-16:z.z+16) : z.z;
+            letter.position.set(lx, y+0.5, lz); scene.add(letter);
+        });
+    }
+
+    function createCurvedFence(cx, cz, r, y) {
+        const count = 24; const mat = new THREE.MeshStandardMaterial({color: 0x8d6e63});
+        for(let i=0; i<count; i++) {
+            if(i>3 && i<6) continue; 
+            const theta = (i/count)*Math.PI*2;
+            const x = cx + Math.cos(theta)*r; const z = cz + Math.sin(theta)*r;
+            const post = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,1.6), mat);
+            post.position.set(x, y+0.8, z); post.castShadow=true; scene.add(post);
+            if(i < count-1 && !(i>=3 && i<6)) {
+                const nt = ((i+1)/count)*Math.PI*2; const nx = cx + Math.cos(nt)*r; const nz = cz + Math.sin(nt)*r;
+                const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05, dist(x,z,nx,nz)), new THREE.MeshStandardMaterial({color:0xffffff}));
+                rail.position.set((x+nx)/2, y+1.2, (z+nz)/2); rail.lookAt(nx, y+1.2, nz); rail.rotateX(Math.PI/2); scene.add(rail);
             }
-            group.position.set((Math.random()-0.5)*250, 35 + Math.random()*15, (Math.random()-0.5)*250);
-            scene.add(group);
+        }
+    }
+    function createFenceRect(cx, cz, w, h, isLow, y) {
+        const height = isLow ? 1.0 : 1.4; const mat = new THREE.MeshStandardMaterial({color: 0xffffff});
+        [{x:cx-w/2,z:cz-h/2},{x:cx+w/2,z:cz-h/2},{x:cx-w/2,z:cz+h/2},{x:cx+w/2,z:cz+h/2}].forEach(p => {
+            const post = new THREE.Mesh(new THREE.BoxGeometry(0.3, height, 0.3), mat);
+            post.position.set(p.x, y+height/2, p.z); post.castShadow=true; scene.add(post);
+        });
+        const r1 = new THREE.Mesh(new THREE.BoxGeometry(w, 0.1, 0.05), mat); r1.position.set(cx, y+height-0.2, cz-h/2); scene.add(r1);
+        const r2 = r1.clone(); r2.position.z = cz+h/2; scene.add(r2);
+        const r3 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, h), mat); r3.position.set(cx-w/2, y+height-0.2, cz); scene.add(r3);
+        const r4 = r3.clone(); r4.position.x = cx+w/2; scene.add(r4);
+    }
+    class Bird {
+        constructor() {
+            this.mesh = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.8, 4), new THREE.MeshBasicMaterial({color:0x333}));
+            this.mesh.rotation.x = Math.PI/2;
+            this.mesh.position.set((Math.random()-0.5)*100, 30+Math.random()*10, (Math.random()-0.5)*100);
+            scene.add(this.mesh);
+            this.angle = Math.random()*Math.PI*2; this.speed = 0.1 + Math.random()*0.1;
+            this.center = {x:0, z:0}; this.radius = 20 + Math.random()*40;
+        }
+        update() {
+            this.angle += this.speed * 0.05;
+            this.mesh.position.x = this.center.x + Math.cos(this.angle)*this.radius;
+            this.mesh.position.z = this.center.z + Math.sin(this.angle)*this.radius;
+            this.mesh.lookAt(this.center.x + Math.cos(this.angle+0.5)*this.radius, this.mesh.position.y, this.center.z + Math.sin(this.angle+0.5)*this.radius);
         }
     }
 
     // --- CHARACTERS ---
-
     function createPlayer() {
         player = new THREE.Group();
         const skinMat = new THREE.MeshStandardMaterial({color: 0xffdbac});
-        const shirtMat = new THREE.MeshStandardMaterial({color: 0xe74c3c});
-        const pantsMat = new THREE.MeshStandardMaterial({color: 0x34495e});
+        const shirtMat = new THREE.MeshStandardMaterial({color: 0x3498db});
+        const pantsMat = new THREE.MeshStandardMaterial({color: 0x2c3e50});
+        const hairMat = new THREE.MeshStandardMaterial({color: 0x3e2723});
 
-        // Torso
         const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.2, 0.6, 16), shirtMat);
-        torso.position.y = 1.3; torso.name = "shirt"; torso.castShadow=true;
-        player.add(torso);
-
-        // Head
-        const headGroup = new THREE.Group();
-        headGroup.position.y = 1.8;
-        const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), skinMat);
-        headMesh.name = "skin"; headMesh.castShadow=true;
-        headGroup.add(headMesh);
-        
-        // Eyes
-        const eyeGeo = new THREE.SphereGeometry(0.04);
-        const eyeMat = new THREE.MeshBasicMaterial({color:0x000000});
-        const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.08, 0.05, 0.18); headGroup.add(eyeL);
-        const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.08, 0.05, 0.18); headGroup.add(eyeR);
-        
+        torso.position.y = 1.3; torso.name = "shirt"; torso.castShadow=true; player.add(torso);
+        const headGroup = new THREE.Group(); headGroup.position.y = 1.8;
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), skinMat);
+        head.name = "skin"; head.castShadow=true; headGroup.add(head);
+        const hairTop = new THREE.Mesh(new THREE.SphereGeometry(0.23, 16, 16, 0, Math.PI*2, 0, Math.PI/2.5), hairMat);
+        hairTop.rotation.x = Math.PI; hairTop.position.y = 0.05; hairTop.name="hair"; headGroup.add(hairTop);
+        const ponyTail = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), hairMat);
+        ponyTail.position.set(0, 0, -0.2); ponyTail.scale.set(1, 1.5, 1); ponyTail.name="hair"; headGroup.add(ponyTail);
         player.add(headGroup);
 
-        // Arms
         const armGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.5, 8);
-        const armL = new THREE.Mesh(armGeo, shirtMat); armL.position.set(-0.32, 1.4, 0); armL.name="shirt"; armL.castShadow=true; armL.rotation.z = 0.2;
-        const armR = new THREE.Mesh(armGeo, shirtMat); armR.position.set(0.32, 1.4, 0); armR.name="shirt"; armR.castShadow=true; armR.rotation.z = -0.2;
-        player.add(armL); player.add(armR);
+        const armL = new THREE.Mesh(armGeo, shirtMat); armL.position.set(-0.32, 1.4, 0); armL.rotation.z=0.2; player.add(armL);
+        const armR = new THREE.Mesh(armGeo, shirtMat); armR.position.set(0.32, 1.4, 0); armR.rotation.z=-0.2; player.add(armR);
 
-        // Legs
         const legGeo = new THREE.CylinderGeometry(0.09, 0.08, 0.75, 8);
-        const legL = new THREE.Mesh(legGeo, pantsMat); legL.position.set(-0.12, 0.65, 0); legL.name = "pants"; legL.castShadow=true;
-        const legLGroup = new THREE.Group(); legLGroup.add(legL); legL.position.y = -0.375; legLGroup.position.set(-0.12, 1.0, 0);
-        player.add(legLGroup); player.legL = legLGroup;
+        const legL = new THREE.Mesh(legGeo, pantsMat); legL.position.set(-0.12, 0.65, 0); 
+        const gL = new THREE.Group(); gL.add(legL); legL.position.y=-0.375; gL.position.set(-0.12, 1.0, 0); player.legL=gL; player.add(gL);
+        const legR = new THREE.Mesh(legGeo, pantsMat); legR.position.set(0.12, 0.65, 0);
+        const gR = new THREE.Group(); gR.add(legR); legR.position.y=-0.375; gR.position.set(0.12, 1.0, 0); player.legR=gR; player.add(gR);
 
-        const legR = new THREE.Mesh(legGeo, pantsMat); legR.position.set(0.12, 0.65, 0); legR.name = "pants"; legR.castShadow=true;
-        const legRGroup = new THREE.Group(); legRGroup.add(legR); legR.position.y = -0.375; legRGroup.position.set(0.12, 1.0, 0);
-        player.add(legRGroup); player.legR = legRGroup;
-
-        player.position.set(0, getTerrainHeight(0, 10), 10);
-        scene.add(player);
+        player.position.set(0, 0, 10); scene.add(player);
     }
 
-    function createHorse() {
+    // --- REALISTIC HORSE V2 ---
+    function createImprovedHorse() {
         horse = new THREE.Group();
-        const furMat = new THREE.MeshStandardMaterial({color: 0x5d4037});
-        const maneMat = new THREE.MeshStandardMaterial({color: 0x111111});
+        const furMat = new THREE.MeshStandardMaterial({color: 0x8d6e63});
+        const maneMat = new THREE.MeshStandardMaterial({color: 0x3e2723});
         const hoofMat = new THREE.MeshStandardMaterial({color: 0x111111});
 
-        // Body
-        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.55, 1.6, 16), furMat);
-        body.rotation.x = Math.PI/2;
-        body.position.y = 1.25; body.name = "fur"; body.castShadow=true;
-        horse.add(body);
+        const chest = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 16), furMat);
+        chest.scale.set(0.9, 1.1, 1.1); chest.position.set(0, 1.3, 0.45); chest.name="fur"; chest.castShadow=true; horse.add(chest);
+        const rump = new THREE.Mesh(new THREE.SphereGeometry(0.62, 16, 16), furMat);
+        rump.scale.set(0.95, 1.0, 1.1); rump.position.set(0, 1.35, -0.55); rump.name="fur"; rump.castShadow=true; horse.add(rump);
+        const mid = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.58, 1.0, 12), furMat);
+        mid.rotation.x = Math.PI/2; mid.position.set(0, 1.3, -0.05); mid.name="fur"; horse.add(mid);
 
-        // Neck
         const neckGroup = new THREE.Group();
-        neckGroup.position.set(0, 1.5, 0.7);
-        const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 0.9, 12), furMat);
-        neck.position.set(0, 0.4, 0); neck.rotation.x = -0.4; neck.name="fur"; neck.castShadow=true;
-        neckGroup.add(neck);
+        neckGroup.position.set(0, 1.6, 0.7);
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.5, 1.1, 12), furMat);
+        neck.position.set(0, 0.45, 0); neck.rotation.x = -0.5; neck.name="fur"; neck.castShadow=true; neckGroup.add(neck);
 
-        // Head
         const headGroup = new THREE.Group();
-        headGroup.position.set(0, 0.8, 0.3); 
-        headGroup.rotation.x = 0.4;
-        
-        const headMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 0.7, 12), furMat);
-        headMesh.rotation.x = Math.PI/2;
-        headMesh.name="fur"; headMesh.castShadow=true;
-        headGroup.add(headMesh);
-
-        // Ears
-        const earGeo = new THREE.ConeGeometry(0.06, 0.2, 8);
-        const earL = new THREE.Mesh(earGeo, furMat); earL.position.set(-0.12, 0.3, -0.2); earL.name="fur"; headGroup.add(earL);
-        const earR = new THREE.Mesh(earGeo, furMat); earR.position.set(0.12, 0.3, -0.2); earR.name="fur"; headGroup.add(earR);
-
+        headGroup.position.set(0, 0.9, 0.4); headGroup.rotation.x = 0.5;
+        const skull = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.7, 0.32), furMat);
+        skull.rotation.x = Math.PI/2; skull.name="fur"; skull.castShadow=true; headGroup.add(skull);
+        const snout = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.4, 0.26), furMat);
+        snout.rotation.x = Math.PI/2; snout.position.z = 0.5; snout.name="fur"; headGroup.add(snout);
         neckGroup.add(headGroup);
+        horse.headGroup = headGroup;
 
-        // Mane
-        const mane = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.9, 0.15), maneMat);
-        mane.position.set(0, 0.5, -0.2); mane.rotation.x = -0.4; mane.name="mane";
-        neckGroup.add(mane);
+        const mane = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.0, 0.2), maneMat);
+        mane.position.set(0, 0.5, -0.28); mane.rotation.x = -0.5; mane.name="mane"; neckGroup.add(mane);
+        horse.add(neckGroup); horse.neck = neckGroup;
 
-        horse.add(neckGroup);
-        horse.neck = neckGroup;
-
-        // Tail
         const tailGroup = new THREE.Group();
-        tailGroup.position.set(0, 1.4, -0.8);
-        const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.15, 0.9, 8), maneMat);
-        tail.position.y = -0.4;
-        tail.rotation.x = 0.3; tail.name="mane";
-        tailGroup.add(tail);
-        horse.add(tailGroup);
-        horse.tail = tailGroup;
+        tailGroup.position.set(0, 1.5, -1.0);
+        const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.2, 0.9, 8), maneMat);
+        tail.position.set(0, -0.3, -0.2); tail.rotation.x = 0.5; tail.name="mane"; tailGroup.add(tail);
+        horse.add(tailGroup); horse.tail = tailGroup;
 
-        // Legs
-        function createLeg(x, z) {
-            const g = new THREE.Group();
-            g.position.set(x, 1.0, z);
-            const l = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 1.0, 8), furMat);
-            l.position.y = -0.5; l.name = "fur"; l.castShadow=true;
-            const h = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.15, 8), hoofMat);
-            h.position.y = -1.0; h.castShadow=true;
-            g.add(l); g.add(h);
+        function createLeg(x, z, isBack) {
+            const g = new THREE.Group(); g.position.set(x, 1.1, z);
+            const thigh = new THREE.Mesh(new THREE.CylinderGeometry(isBack?0.2:0.15, 0.12, 0.65, 8), furMat);
+            thigh.position.y = -0.3; thigh.name="fur"; thigh.castShadow=true; g.add(thigh);
+            const joint = new THREE.Mesh(new THREE.SphereGeometry(0.13), furMat);
+            joint.position.y = -0.65; joint.name="fur"; g.add(joint);
+            const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.55, 8), furMat);
+            shin.position.y = -0.95; shin.name="fur"; shin.castShadow=true; g.add(shin);
+            const hoof = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.1, 8), hoofMat);
+            hoof.position.y = -1.25; hoof.castShadow=true; g.add(hoof);
             return g;
         }
 
-        horse.legFL = createLeg(0.25, 0.6); horse.add(horse.legFL);
-        horse.legFR = createLeg(-0.25, 0.6); horse.add(horse.legFR);
-        horse.legBL = createLeg(0.25, -0.6); horse.add(horse.legBL);
-        horse.legBR = createLeg(-0.25, -0.6); horse.add(horse.legBR);
+        horse.legFL = createLeg(0.28, 0.65, false); horse.add(horse.legFL);
+        horse.legFR = createLeg(-0.28, 0.65, false); horse.add(horse.legFR);
+        horse.legBL = createLeg(0.28, -0.6, true); horse.add(horse.legBL);
+        horse.legBR = createLeg(-0.28, -0.6, true); horse.add(horse.legBR);
 
-        const startX = ZONES.STABLE.x - 5;
-        const startZ = ZONES.STABLE.z + 5;
-        horse.position.set(startX, getTerrainHeight(startX, startZ), startZ);
+        const sx = ZONES.STABLE.x-5, sz = ZONES.STABLE.z+5;
+        horse.position.set(sx, getTerrainHeight(sx, sz), sz);
         scene.add(horse);
     }
 
     function createLeash() {
-        const mat = new THREE.LineBasicMaterial({ color: 0x222222, linewidth: 2 });
+        const mat = new THREE.LineBasicMaterial({ color: 0x333, linewidth: 2 });
         const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-        leashLine = new THREE.Line(geo, mat);
-        leashLine.visible = false;
-        leashLine.frustumCulled = false;
-        scene.add(leashLine);
+        leashLine = new THREE.Line(geo, mat); leashLine.visible=false; leashLine.frustumCulled=false; scene.add(leashLine);
     }
 
-    // --- GAME LOGIC ---
+    // --- LOGIC ---
+    function checkStableCollision(oldPos, newPos) {
+        const sX = ZONES.STABLE.x; const sZ = ZONES.STABLE.z; const w = 20; const d = 28;
+        const minX = sX - w/2 - 0.3; const maxX = sX + w/2 + 0.3;
+        const minZ = sZ - d/2 - 0.3; const maxZ = sZ + d/2 + 0.3;
+        const isInside = newPos.x > minX && newPos.x < maxX && newPos.z > minZ && newPos.z < maxZ;
+        const wasInside = oldPos.x > minX && oldPos.x < maxX && oldPos.z > minZ && oldPos.z < maxZ;
+        if (isInside !== wasInside) {
+            const doorZ = sZ + d/2; const dx = Math.abs(newPos.x - sX);   
+            if (newPos.z > minZ && newPos.z > maxZ - 2) { if (dx < 3.0) return false; }
+            return true;
+        }
+        return false;
+    }
 
     function updatePhysics(dt) {
         if(gameState !== "FREE") return;
-
         const speed = 7.0 * dt;
-        const forward = new THREE.Vector3();
-        camera.getWorldDirection(forward);
-        forward.y = 0; forward.normalize();
-        const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), forward).normalize();
+        const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y=0; fwd.normalize();
+        const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), fwd).normalize();
+        const move = new THREE.Vector3();
+        if(keys.w) move.add(fwd); if(keys.s) move.sub(fwd);
+        if(keys.a) move.add(right); if(keys.d) move.sub(right);
 
-        const moveDir = new THREE.Vector3();
-        if(keys.w) moveDir.add(forward);
-        if(keys.s) moveDir.sub(forward);
-        if(keys.a) moveDir.add(right);
-        if(keys.d) moveDir.sub(right);
+        let moving = false;
+        if(move.lengthSq() > 0) {
+            move.normalize();
+            const nextPos = player.position.clone().addScaledVector(move, speed);
+            if(nextPos.distanceTo(horse.position) <= 1.2) {} 
+            else if(checkStableCollision(player.position, nextPos)) {}
+            else {
+                player.position.copy(nextPos); moving = true;
+                const tr = Math.atan2(move.x, move.z); let rd = tr - player.rotation.y;
+                while(rd>Math.PI)rd-=Math.PI*2; while(rd<-Math.PI)rd+=Math.PI*2;
+                player.rotation.y += rd * 0.2;
+                stepTimer += dt; if(stepTimer > 0.4) { AudioSys.playStep(); stepTimer=0; }
+            }
+        }
+        player.position.y = getTerrainHeight(player.position.x, player.position.z);
+        
+        const distStable = player.position.distanceTo(new THREE.Vector3(ZONES.STABLE.x, 0, ZONES.STABLE.z));
+        const camDistStable = camera.position.distanceTo(new THREE.Vector3(ZONES.STABLE.x, 0, ZONES.STABLE.z));
+        let targetOp = (distStable < 18 || camDistStable < 22) ? 0.2 : 1.0;
+        stableMaterials.forEach(mat => { mat.opacity = THREE.MathUtils.lerp(mat.opacity, targetOp, 0.1); });
 
-        let isMoving = false;
-        if(moveDir.lengthSq() > 0) {
-            isMoving = true;
-            moveDir.normalize();
-            
-            // Move X/Z
-            player.position.addScaledVector(moveDir, speed);
-            
-            // Player Rotation
-            const targetRot = Math.atan2(moveDir.x, moveDir.z);
-            let rotDiff = targetRot - player.rotation.y;
-            while(rotDiff > Math.PI) rotDiff -= Math.PI*2;
-            while(rotDiff < -Math.PI) rotDiff += Math.PI*2;
-            player.rotation.y += rotDiff * 0.2;
+        if(stableDoorGroup) {
+            const distDoor = player.position.distanceTo(new THREE.Vector3(ZONES.STABLE.x, 0, ZONES.STABLE.z + 14));
+            const targetRot = (distDoor < 8) ? -Math.PI/2 : 0;
+            stableDoorGroup.rotation.y = THREE.MathUtils.lerp(stableDoorGroup.rotation.y, targetRot, 0.05);
         }
 
-        // Apply Terrain Height to Player
-        const pHeight = getTerrainHeight(player.position.x, player.position.z);
-        // Player animation bob
-        const time = Date.now() * 0.015;
-        const bob = isMoving ? Math.sin(time*2)*0.05 : 0;
-        player.position.y = pHeight + bob;
-
-        if(isMoving) {
-            player.legL.rotation.x = Math.sin(time) * 0.8;
-            player.legR.rotation.x = Math.sin(time + Math.PI) * 0.8;
-            player.children.forEach(c => { // Bob shirt
-                if(c.name === 'shirt' && c.geometry.type === 'CylinderGeometry') c.position.y = 1.3 + bob;
-            });
+        if(moving) {
+            const t = Date.now()*0.015;
+            player.legL.rotation.x = Math.sin(t)*0.8; player.legR.rotation.x = Math.sin(t+Math.PI)*0.8;
         } else {
             player.legL.rotation.x = THREE.MathUtils.lerp(player.legL.rotation.x, 0, 0.2);
             player.legR.rotation.x = THREE.MathUtils.lerp(player.legR.rotation.x, 0, 0.2);
@@ -819,393 +772,223 @@
 
         if(isLeashed) {
             horseState = "FOLLOWING";
-            updateLeashPhysics(dt);
+            const distP = player.position.distanceTo(horse.position);
+            if(distP > 2.8) {
+                const dir = new THREE.Vector3().subVectors(player.position, horse.position).normalize(); dir.y=0;
+                const nextHPos = horse.position.clone().addScaledVector(dir, 6.0*dt);
+                if(nextHPos.distanceTo(player.position) > 1.2) {
+                    horse.position.copy(nextHPos);
+                    const hTr = Math.atan2(dir.x, dir.z); let hRd = hTr - horse.rotation.y;
+                    while(hRd>Math.PI)hRd-=Math.PI*2; while(hRd<-Math.PI)hRd+=Math.PI*2;
+                    horse.rotation.y += hRd*0.1;
+                    animateHorse(true);
+                } else animateHorse(false);
+            } else animateHorse(false);
+            updateLeash();
         } else {
             checkZones();
             if(horseState === "ROUNDPEN") runRoundpen(dt);
             else if(horseState === "GRAZING") updateGrazing(dt);
-            else if(horseState === "GROUNDWORK") resetHorsePose(0.1);
-            else { horseState = "IDLE"; resetHorsePose(0.05); }
+            else if(horseState === "GROUNDWORK") resetHorse(0.1);
+            else { horseState="IDLE"; resetHorse(0.05); }
         }
         
-        if(horseState !== "REAR_TRICK_ACTIVE") {
-             const hY = getTerrainHeight(horse.position.x, horse.position.z);
-             if(horseState !== "GROUNDWORK") {
-                horse.position.y = hY; 
-             }
-        }
-
+        if(!horseState.includes("TRICK")) horse.position.y = getTerrainHeight(horse.position.x, horse.position.z);
         updateStatusBar();
-    }
-
-    function updateLeashPhysics(dt) {
-        const dist = player.position.distanceTo(horse.position);
-        
-        if(dist > 2.8) {
-            const dir = new THREE.Vector3().subVectors(player.position, horse.position).normalize();
-            dir.y = 0; // Ignore Y for direction to prevent tilting into ground
-            
-            horse.position.addScaledVector(dir, 6.0 * dt);
-            
-            // Manual rotation to prevent flipping
-            const targetRot = Math.atan2(dir.x, dir.z);
-            let rotDiff = targetRot - horse.rotation.y;
-            while(rotDiff > Math.PI) rotDiff -= Math.PI*2;
-            while(rotDiff < -Math.PI) rotDiff += Math.PI*2;
-            horse.rotation.y += rotDiff * 0.1;
-            
-            // Force upright
-            horse.rotation.x = 0;
-            horse.rotation.z = 0;
-
-            animateHorseWalk(true);
-        } else {
-            animateHorseWalk(false);
-        }
-        
-        // Update Y for terrain
-        const hY = getTerrainHeight(horse.position.x, horse.position.z);
-        horse.position.y = hY;
-
-        updateLeashVisual();
-    }
-
-    function updateLeashVisual() {
-        const handPos = player.position.clone(); handPos.y += 1.3;
-        // Offset hand to side
-        handPos.add(new THREE.Vector3(0.3, 0, 0).applyAxisAngle(new THREE.Vector3(0,1,0), player.rotation.y));
-        
-        const neckPos = horse.position.clone(); neckPos.y += 1.5; 
-        neckPos.add(new THREE.Vector3(0,0,0.7).applyAxisAngle(new THREE.Vector3(0,1,0), horse.rotation.y));
-        
-        const posAttr = leashLine.geometry.attributes.position;
-        posAttr.setXYZ(0, handPos.x, handPos.y, handPos.z);
-        posAttr.setXYZ(1, neckPos.x, neckPos.y, neckPos.z);
-        posAttr.needsUpdate = true;
-        leashLine.visible = true;
     }
 
     function checkZones() {
         const p = horse.position;
-        if(dist(p.x, p.z, ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z) < ZONES.ROUNDPEN.r) {
-            if(horseState !== "ROUNDPEN") { horseState = "ROUNDPEN"; activeTaskTimer = 0; showBubble("Bereit zum Laufen!"); }
-            return;
-        }
-        if(p.x > ZONES.PASTURE.x - 14 && p.x < ZONES.PASTURE.x + 14 && 
-           p.z > ZONES.PASTURE.z - 14 && p.z < ZONES.PASTURE.z + 14) {
-            if(horseState !== "GRAZING") { horseState = "GRAZING"; activeTaskTimer = 0; }
-            return;
-        }
-        if(p.x > ZONES.ARENA.x - 12 && p.x < ZONES.ARENA.x + 12 && 
-           p.z > ZONES.ARENA.z - 12 && p.z < ZONES.ARENA.z + 12) {
-            horseState = "GROUNDWORK";
-            return;
-        }
+        if(dist(p.x,p.z,ZONES.ROUNDPEN.x,ZONES.ROUNDPEN.z)<ZONES.ROUNDPEN.r) { if(horseState!=="ROUNDPEN"){horseState="ROUNDPEN"; activeTaskTimer=0; showBubble("Lauftraining!");} return; }
+        if(dist(p.x,p.z,ZONES.PASTURE.x,ZONES.PASTURE.z)<ZONES.PASTURE.r) { if(horseState!=="GRAZING"){horseState="GRAZING"; activeTaskTimer=0;} return; }
+        if(p.x > ZONES.ARENA.x-14 && p.x < ZONES.ARENA.x+14 && p.z > ZONES.ARENA.z-14 && p.z < ZONES.ARENA.z+14) { horseState="GROUNDWORK"; return; }
     }
 
     function runRoundpen(dt) {
         activeTaskTimer += dt;
-        const radius = 9;
-        const center = new THREE.Vector3(ZONES.ROUNDPEN.x, 0, ZONES.ROUNDPEN.z);
-        
-        if(activeTaskTimer < 12) {
-            const speed = 1.5;
-            const angle = Date.now() * 0.001 * speed;
-            const tx = center.x + Math.cos(angle)*radius;
-            const tz = center.z + Math.sin(angle)*radius;
-            
-            // Position
-            const ty = getTerrainHeight(tx, tz);
-            horse.position.set(tx, ty, tz);
-
-            // Rotation (Manual to avoid flipping)
-            // Look at next point
-            const nextX = center.x + Math.cos(angle+0.1)*radius;
-            const nextZ = center.z + Math.sin(angle+0.1)*radius;
-            const dirX = nextX - tx;
-            const dirZ = nextZ - tz;
-            horse.rotation.y = Math.atan2(dirX, dirZ);
-            horse.rotation.x = 0; // Prevent flip
-            horse.rotation.z = 0; // Prevent flip
-
-            animateHorseWalk(true, 2.0);
+        const r = 9; const c = ZONES.ROUNDPEN;
+        if(activeTaskTimer < 15) {
+            const ang = Date.now()*0.001*0.8; 
+            const tx = c.x + Math.cos(ang)*r; const tz = c.z + Math.sin(ang)*r;
+            horse.position.set(tx, getTerrainHeight(tx,tz), tz);
+            horse.lookAt(c.x+Math.cos(ang+0.5)*r, horse.position.y, c.z+Math.sin(ang+0.5)*r);
+            animateHorse(true, 1.3); 
+            if(Math.random() < 0.005) AudioSys.playStep();
         } else {
-            const hY = getTerrainHeight(horse.position.x, horse.position.z);
-            horse.position.y = hY;
-            resetHorsePose();
-            
-            if(activeTaskTimer < 12.1) showBubble("Wieherr! (Fertig)");
-            
-            // Face player
-            const dx = player.position.x - horse.position.x;
-            const dz = player.position.z - horse.position.z;
-            horse.rotation.y = Math.atan2(dx, dz);
+            resetHorse(); if(activeTaskTimer<15.1) showBubble("Fertig!");
+            horse.lookAt(player.position.x, horse.position.y, player.position.z);
         }
     }
 
     function updateGrazing(dt) {
-        activeTaskTimer += dt;
-        // Ensure on ground
-        horse.position.y = getTerrainHeight(horse.position.x, horse.position.z);
-        
-        horse.neck.rotation.x = THREE.MathUtils.lerp(horse.neck.rotation.x, 0.7, 0.05);
-        if(activeTaskTimer > 8 && activeTaskTimer < 8.1) showBubble("Munch Munch...");
-        if(activeTaskTimer > 15 && activeTaskTimer < 15.1) showBubble("Wieherr! (Satt)");
-        horse.tail.rotation.z = Math.sin(Date.now() * 0.003) * 0.3; 
+        activeTaskTimer+=dt;
+        const targetNeck = 1.3; 
+        const targetHead = -0.3; 
+        horse.neck.rotation.x = THREE.MathUtils.lerp(horse.neck.rotation.x, targetNeck, 0.05);
+        if(horse.headGroup) {
+            const bob = Math.sin(Date.now()*0.008)*0.1;
+            horse.headGroup.rotation.x = THREE.MathUtils.lerp(horse.headGroup.rotation.x, targetHead + bob, 0.05);
+        }
+
+        if(activeTaskTimer>8 && activeTaskTimer<8.1) { showBubble("Mampf..."); AudioSys.playEat(); }
+        horse.tail.rotation.z = Math.sin(Date.now()*0.003)*0.3;
     }
 
-    function animateHorseWalk(isMoving, speedMult = 1.0) {
-        const hY = getTerrainHeight(horse.position.x, horse.position.z);
-        if(isMoving) {
-            const time = Date.now() * 0.01 * speedMult;
-            horse.legFL.rotation.x = Math.sin(time) * 0.6;
-            horse.legBR.rotation.x = Math.sin(time) * 0.6;
-            horse.legFR.rotation.x = Math.sin(time + Math.PI) * 0.6;
-            horse.legBL.rotation.x = Math.sin(time + Math.PI) * 0.6;
-            horse.neck.rotation.x = -0.4 + Math.sin(time * 2) * 0.05;
-            horse.tail.rotation.z = Math.sin(time * 1.5) * 0.15;
-            
-            // Gallop bounce relative to terrain
-            horse.position.y = hY + Math.abs(Math.sin(time*2)*0.1); 
-        } else {
-            resetHorsePose();
-            horse.position.y = hY;
-        }
+    function animateHorse(moving, speed=1.0) {
+        if(moving) {
+            const t = Date.now()*0.01*speed;
+            horse.legFL.rotation.x = Math.sin(t)*0.6; horse.legBR.rotation.x = Math.sin(t)*0.6;
+            horse.legFR.rotation.x = Math.sin(t+Math.PI)*0.6; horse.legBL.rotation.x = Math.sin(t+Math.PI)*0.6;
+            horse.neck.rotation.x = -0.4 + Math.sin(t*2)*0.05;
+            if(horse.headGroup) horse.headGroup.rotation.x = THREE.MathUtils.lerp(horse.headGroup.rotation.x, 0.5, 0.1);
+            horse.tail.rotation.z = Math.sin(t*1.5)*0.15;
+            horse.position.y += Math.abs(Math.sin(t*2)*0.1);
+        } else resetHorse();
+    }
+    function resetHorse(lerp=0.1) {
+        horse.legFL.rotation.x=THREE.MathUtils.lerp(horse.legFL.rotation.x,0,lerp);
+        horse.legFR.rotation.x=THREE.MathUtils.lerp(horse.legFR.rotation.x,0,lerp);
+        horse.legBL.rotation.x=THREE.MathUtils.lerp(horse.legBL.rotation.x,0,lerp);
+        horse.legBR.rotation.x=THREE.MathUtils.lerp(horse.legBR.rotation.x,0,lerp);
+        horse.neck.rotation.x=THREE.MathUtils.lerp(horse.neck.rotation.x,-0.4,lerp);
+        if(horse.headGroup) horse.headGroup.rotation.x = THREE.MathUtils.lerp(horse.headGroup.rotation.x, 0.5, lerp);
+        horse.rotation.z=THREE.MathUtils.lerp(horse.rotation.z,0,lerp);
+        horse.rotation.x=THREE.MathUtils.lerp(horse.rotation.x,0,lerp);
     }
 
-    function resetHorsePose(lerp = 0.1) {
-        horse.legFL.rotation.x = THREE.MathUtils.lerp(horse.legFL.rotation.x, 0, lerp);
-        horse.legFR.rotation.x = THREE.MathUtils.lerp(horse.legFR.rotation.x, 0, lerp);
-        horse.legBL.rotation.x = THREE.MathUtils.lerp(horse.legBL.rotation.x, 0, lerp);
-        horse.legBR.rotation.x = THREE.MathUtils.lerp(horse.legBR.rotation.x, 0, lerp);
-        horse.neck.rotation.x = THREE.MathUtils.lerp(horse.neck.rotation.x, -0.4, lerp);
-        
-        if(horseState !== "GROUNDWORK") {
-            horse.rotation.z = THREE.MathUtils.lerp(horse.rotation.z, 0, lerp);
-            horse.rotation.x = THREE.MathUtils.lerp(horse.rotation.x, 0, lerp);
-        }
-        
-        horse.tail.rotation.z = THREE.MathUtils.lerp(horse.tail.rotation.z, 0, lerp);
-    }
-
-    // --- DRAW MINIMAP ---
-    function drawMinimap() {
-        if(!minimapCtx) return;
-        const width = 200, height = 200;
-        const range = 140; 
-        
-        // Clear
-        minimapCtx.fillStyle = "rgba(0,0,0,0.85)";
-        minimapCtx.fillRect(0, 0, width, height);
-
-        const mapX = (x) => (x / range) * width + width/2;
-        const mapZ = (z) => (z / range) * height + height/2;
-        const mapScale = (v) => (v / range) * width;
-
-        // Draw Zones
-        minimapCtx.font = "12px sans-serif";
-        minimapCtx.textAlign = "center";
-        minimapCtx.textBaseline = "middle";
-
-        for(const k in ZONES) {
-            const z = ZONES[k];
-            minimapCtx.fillStyle = z.color;
-            minimapCtx.beginPath();
-            if(k === "ROUNDPEN" || k === "STABLE") {
-                minimapCtx.arc(mapX(z.x), mapZ(z.z), mapScale(z.r), 0, Math.PI*2);
-            } else {
-                minimapCtx.rect(mapX(z.x - z.r), mapZ(z.z - z.r), mapScale(z.r*2), mapScale(z.r*2));
-            }
-            minimapCtx.fill();
-
-            // Label
-            minimapCtx.fillStyle = "white";
-            minimapCtx.strokeStyle = "black";
-            minimapCtx.lineWidth = 2;
-            // On mobile, hide text if too cluttered, but for now keep it
-            minimapCtx.strokeText(z.label, mapX(z.x), mapZ(z.z));
-            minimapCtx.fillText(z.label, mapX(z.x), mapZ(z.z));
-        }
-
-        if(horse) {
-            minimapCtx.fillStyle = "#ff9800"; 
-            minimapCtx.beginPath();
-            minimapCtx.arc(mapX(horse.position.x), mapZ(horse.position.z), 5, 0, Math.PI*2);
-            minimapCtx.fill();
-        }
-
-        if(player) {
-            minimapCtx.fillStyle = "#00bcd4";
-            minimapCtx.beginPath();
-            minimapCtx.arc(mapX(player.position.x), mapZ(player.position.z), 5, 0, Math.PI*2);
-            minimapCtx.fill();
-
-            // View Cone
-            const fwd = new THREE.Vector3();
-            camera.getWorldDirection(fwd);
-            minimapCtx.strokeStyle = "rgba(255,255,255,0.5)";
-            minimapCtx.beginPath();
-            minimapCtx.moveTo(mapX(player.position.x), mapZ(player.position.z));
-            minimapCtx.lineTo(mapX(player.position.x + fwd.x * 20), mapZ(player.position.z + fwd.z * 20));
-            minimapCtx.stroke();
-        }
-    }
-
-    // --- INPUTS & UI ---
-
-    function onKeyDown(e) {
-        const key = e.key.toLowerCase();
-        if(['w','arrowup'].includes(key)) keys.w = true;
-        if(['s','arrowdown'].includes(key)) keys.s = true;
-        if(['a','arrowleft'].includes(key)) keys.a = true;
-        if(['d','arrowright'].includes(key)) keys.d = true;
-        
-        if(key === 'l') toggleLeash();
-        if(key === 'f') tryFeed();
-        
-        if(horseState === "GROUNDWORK") {
-            if(key === '1') doTrick("REAR");
-            if(key === '2') doTrick("BOW");
-            if(key === '3') doTrick("SPIN");
-        }
-    }
-    function onKeyUp(e) {
-        const key = e.key.toLowerCase();
-        if(['w','arrowup'].includes(key)) keys.w = false;
-        if(['s','arrowdown'].includes(key)) keys.s = false;
-        if(['a','arrowleft'].includes(key)) keys.a = false;
-        if(['d','arrowright'].includes(key)) keys.d = false;
+    function updateLeash() {
+        const h = player.position.clone(); h.y+=1.3;
+        h.add(new THREE.Vector3(0.3,0,0).applyAxisAngle(new THREE.Vector3(0,1,0),player.rotation.y));
+        const n = horse.position.clone(); n.y+=1.5;
+        n.add(new THREE.Vector3(0,0,0.7).applyAxisAngle(new THREE.Vector3(0,1,0),horse.rotation.y));
+        const pos = leashLine.geometry.attributes.position;
+        pos.setXYZ(0,h.x,h.y,h.z); pos.setXYZ(1,n.x,n.y,n.z); pos.needsUpdate=true; leashLine.visible=true;
     }
 
     function toggleLeash() {
-        if(isLeashed) {
-            isLeashed = false; leashLine.visible = false; activeTaskTimer = 0; showBubble("Losgelassen");
-        } else {
-            if(player.position.distanceTo(horse.position) < 4) { isLeashed = true; horseState = "FOLLOWING"; showBubble("Angeleint"); }
-            else showBubble("Zu weit weg!");
-        }
+        if(isLeashed) { isLeashed=false; leashLine.visible=false; showBubble("Losgelassen"); }
+        else if(player.position.distanceTo(horse.position)<5) { isLeashed=true; horseState="FOLLOWING"; showBubble("Angeleint"); AudioSys.playEat(); }
+        else showBubble("Zu weit weg!");
     }
-
-    function doTrick(type) {
-        const hY = getTerrainHeight(horse.position.x, horse.position.z);
-        if(type === "REAR") {
-            const tl = setInterval(() => { 
+    
+    function doTrick(t) {
+        const hy = getTerrainHeight(horse.position.x, horse.position.z);
+        if(t==="REAR") {
+            const i = setInterval(()=>{
                 horse.rotation.x = -0.8; 
-                horse.position.y = hY + 1.0; 
-            }, 10);
-            setTimeout(() => { clearInterval(tl); resetHorsePose(1.0); }, 1000); showBubble("Steigen!");
+                horse.position.y = hy + 1.1; 
+                horse.legFL.rotation.x = -1.5; 
+                horse.legFR.rotation.x = -1.8;
+                horse.neck.rotation.x = 0.2; 
+            },10);
+            setTimeout(()=>{clearInterval(i); resetHorse(1);},1200); showBubble("Steigen!"); AudioSys.playNeigh();
         }
-        if(type === "BOW") {
-            const tl = setInterval(() => { 
-                horse.rotation.z = 0.2; 
-                horse.rotation.x = 0.6; 
-                horse.position.y = hY - 0.2; 
-            }, 10);
-            setTimeout(() => { clearInterval(tl); resetHorsePose(1.0); }, 1500); showBubble("Verbeugen!");
+        if(t==="BOW") {
+            const i = setInterval(()=>{
+                horse.rotation.x = 0.4; 
+                horse.position.y = hy - 0.2;
+                horse.legFL.rotation.x = -1.2;
+                horse.legFR.rotation.x = -1.2;
+                horse.neck.rotation.x = 0.5; 
+            },10);
+            setTimeout(()=>{clearInterval(i); resetHorse(1);},1500); showBubble("Verbeugen!");
         }
-        if(type === "SPIN") {
-            let r = 0;
-            const tl = setInterval(() => { horse.rotation.y += 0.2; r++; if(r>30) clearInterval(tl); }, 16);
+        if(t==="SPIN") {
+            let c=0; const i = setInterval(()=>{
+                horse.rotation.y+=0.15; 
+                animateHorse(true, 0.5); 
+                c++; if(c>40)clearInterval(i);
+            },16);
             showBubble("Drehen!");
         }
     }
 
-    let requestedFood = "";
-    const FOODS = ['🍎', '🥕', '🌾'];
-
     function tryFeed() {
-        if(dist(player.position.x, player.position.z, ZONES.STABLE.x, ZONES.STABLE.z) < ZONES.STABLE.r) {
-            if(player.position.distanceTo(horse.position) < 6) {
-                gameState = "FEEDING";
-                requestedFood = FOODS[Math.floor(Math.random()*FOODS.length)];
-                document.getElementById('food-request').innerText = requestedFood;
-                document.getElementById('feeding-modal').style.display = 'block';
-                keys = {w:false, s:false, a:false, d:false};
+        if(dist(player.position.x,player.position.z,ZONES.STABLE.x,ZONES.STABLE.z)<ZONES.STABLE.r) {
+            if(player.position.distanceTo(horse.position)<6) {
+                gameState="FEEDING"; document.getElementById('feeding-modal').style.display='block';
+                keys={w:false,s:false,a:false,d:false};
+                horse.lookAt(player.position);
             } else showBubble("Pferd herholen!");
         } else showBubble("Geh in den Stall!");
     }
+    window.feedHorse=function(i){ showBubble("Lecker! ♥"); AudioSys.playEat(); closeFeedMenu(); }
+    window.closeFeedMenu=function(){ document.getElementById('feeding-modal').style.display='none'; gameState="FREE"; }
 
-    window.feedHorse = function(item) {
-        if(item === requestedFood) showBubble("Lecker! ♥");
-        else showBubble("Püh! (Falsch)");
-        closeFeedMenu();
-    };
-    window.closeFeedMenu = function() {
-        document.getElementById('feeding-modal').style.display = 'none';
-        gameState = "FREE";
-    };
-
-    function onMouseMove(e) {
-        if(mouse.down && gameState === "FREE") {
-            cameraAngle.theta -= e.movementX * 0.005;
-            cameraAngle.phi -= e.movementY * 0.005;
-            cameraAngle.phi = Math.max(0.1, Math.min(Math.PI/2 - 0.1, cameraAngle.phi));
+    function drawMinimap() {
+        if(!minimapCtx) return;
+        const w=200, h=200, range=160;
+        minimapCtx.fillStyle="rgba(20,30,20,0.9)"; minimapCtx.fillRect(0,0,w,h);
+        const mx=(x)=>(x/range)*w+w/2, mz=(z)=>(z/range)*h+h/2, ms=(v)=>(v/range)*w;
+        for(let k in ZONES) {
+            const z=ZONES[k]; minimapCtx.fillStyle=z.color; minimapCtx.beginPath();
+            if(k==="ROUNDPEN"||k==="STABLE"||k==="POND") minimapCtx.arc(mx(z.x), mz(z.z), ms(z.r), 0, Math.PI*2);
+            else minimapCtx.fillRect(mx(z.x-z.r), mz(z.z-z.r), ms(z.r*2), ms(z.r*2));
+            minimapCtx.fill();
         }
-    }
-    function onResize() {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-    function updateCamera() {
-        const pHeight = getTerrainHeight(player.position.x, player.position.z);
-        const target = player.position.clone();
-        target.y = pHeight + 2; 
-
-        const offset = new THREE.Vector3(
-            cameraAngle.dist * Math.sin(cameraAngle.phi) * Math.sin(cameraAngle.theta),
-            cameraAngle.dist * Math.cos(cameraAngle.phi),
-            cameraAngle.dist * Math.sin(cameraAngle.phi) * Math.cos(cameraAngle.theta)
-        );
-        camera.position.copy(target).add(offset);
-        camera.lookAt(target);
+        if(horse) { minimapCtx.fillStyle="#ff9800"; minimapCtx.beginPath(); minimapCtx.arc(mx(horse.position.x), mz(horse.position.z), 4, 0, Math.PI*2); minimapCtx.fill(); }
+        if(player) {
+            minimapCtx.fillStyle="#00bcd4"; minimapCtx.beginPath(); minimapCtx.arc(mx(player.position.x), mz(player.position.z), 4, 0, Math.PI*2); minimapCtx.fill();
+            const f = new THREE.Vector3(); camera.getWorldDirection(f);
+            minimapCtx.strokeStyle="rgba(255,255,255,0.4)"; minimapCtx.beginPath();
+            minimapCtx.moveTo(mx(player.position.x), mz(player.position.z));
+            minimapCtx.lineTo(mx(player.position.x+f.x*30), mz(player.position.z+f.z*30)); minimapCtx.stroke();
+        }
     }
 
     function animate() {
         requestAnimationFrame(animate);
-        if(clock) {
-            const dt = clock.getDelta();
-            if(gameState === "FREE") updatePhysics(dt);
-        }
+        const dt = clock.getDelta();
+        if(gameState==="FREE") updatePhysics(dt);
+        birds.forEach(b => b.update());
         drawMinimap();
-        updateCamera();
+        
+        const th = getTerrainHeight(player.position.x, player.position.z);
+        const target = player.position.clone(); target.y = th+2;
+        const off = new THREE.Vector3(
+            cameraAngle.dist * Math.sin(cameraAngle.phi) * Math.sin(cameraAngle.theta),
+            cameraAngle.dist * Math.cos(cameraAngle.phi),
+            cameraAngle.dist * Math.sin(cameraAngle.phi) * Math.cos(cameraAngle.theta)
+        );
+        camera.position.lerp(target.clone().add(off), 0.1);
+        camera.lookAt(target);
+
         renderer.render(scene, camera);
     }
-
-    function dist(x1, z1, x2, z2) { return Math.sqrt((x2-x1)**2 + (z2-z1)**2); }
-    function showBubble(text) {
-        const b = document.getElementById('bubble');
-        b.innerText = text; b.style.display = 'block';
-        setTimeout(() => b.style.display = 'none', 2000);
+    
+    function onKeyDown(e){const k=e.key.toLowerCase(); if(['w','arrowup'].includes(k))keys.w=true; if(['s','arrowdown'].includes(k))keys.s=true; if(['a','arrowleft'].includes(k))keys.a=true; if(['d','arrowright'].includes(k))keys.d=true; if(k==='l')toggleLeash(); if(k==='f')tryFeed(); if(horseState==="GROUNDWORK" && ['1','2','3'].includes(k)) doTrick(k=='1'?'REAR':k=='2'?'BOW':'SPIN');}
+    function onKeyUp(e){const k=e.key.toLowerCase(); if(['w','arrowup'].includes(k))keys.w=false; if(['s','arrowdown'].includes(k))keys.s=false; if(['a','arrowleft'].includes(k))keys.a=false; if(['d','arrowright'].includes(k))keys.d=false;}
+    function onMouseMove(e){if(mouse.down){cameraAngle.theta-=e.movementX*0.005; cameraAngle.phi-=e.movementY*0.005; cameraAngle.phi=Math.max(0.1,Math.min(Math.PI/2-0.1,cameraAngle.phi));}}
+    function onResize(){camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight);}
+    function dist(x1,z1,x2,z2){return Math.sqrt((x2-x1)**2+(z2-z1)**2);}
+    function showBubble(t){const b=document.getElementById('bubble'); b.innerText=t; b.style.display='block'; setTimeout(()=>b.style.display='none',2000);}
+    function updateStatusBar(){
+        const sb=document.getElementById('status-bar'); sb.style.display='block';
+        sb.innerText = isLeashed ? "Spaziergang" : (horseState==="ROUNDPEN"?"Training":horseState==="GRAZING"?"Grasen...":"Freizeit");
     }
-    function updateStatusBar() {
-        const sb = document.getElementById('status-bar'); sb.style.display = 'block';
-        if(isLeashed) sb.innerText = "Spaziergang";
-        else if(horseState === "ROUNDPEN") sb.innerText = "Training: " + Math.min(100, Math.floor(activeTaskTimer * 10)) + "%";
-        else if(horseState === "GRAZING") sb.innerText = "Grasen...";
-        else if(horseState === "GROUNDWORK") sb.innerText = "Bodenarbeit (1, 2, 3)";
-        else sb.innerText = "Freizeit";
-    }
-
-    document.getElementById('startBtn').onclick = () => {
-        updateColors();
-        document.getElementById('config-panel').style.display = 'none';
+    
+    document.getElementById('startBtn').onclick=()=>{
+        AudioSys.init(); 
+        updateColors(); document.getElementById('config-panel').style.opacity='0'; setTimeout(()=>document.getElementById('config-panel').style.display='none',500);
     };
-    function updateColors() {
-        const pSkin = document.getElementById('skinColor').value;
-        const pShirt = document.getElementById('shirtColor').value;
-        const pPants = document.getElementById('pantsColor').value;
-        player.traverse(o => {
-            if(o.name==="skin") o.material.color.set(pSkin);
-            if(o.name==="shirt") o.material.color.set(pShirt);
-            if(o.name==="pants") o.material.color.set(pPants);
+    
+    function updateColors(){
+        const outfit = PALETTES.PLAYER[selectedSettings.outfit];
+        const look = PALETTES.SKIN[selectedSettings.skin];
+        const hColor = PALETTES.HORSE[selectedSettings.horse];
+
+        player.children.forEach(c=>{
+            if(c.name==='skin')c.material.color.set(look.skin); 
+            if(c.name==='shirt')c.material.color.set(outfit.shirt);
         });
-        const hFur = document.getElementById('horseColor').value;
-        const hMane = document.getElementById('maneColor').value;
-        horse.traverse(o => {
-            if(o.name==="fur") o.material.color.set(hFur);
-            if(o.name==="mane") o.material.color.set(hMane);
-        });
+        player.children[1].children.forEach(c=>{ 
+            if(c.name==='hair')c.material.color.set(look.hair);
+        }); 
+        player.legL.children[0].material.color.set(outfit.pants); 
+        player.legR.children[0].material.color.set(outfit.pants);
+        
+        const setFur = (o) => { if(o.name==='fur') o.material.color.set(hColor.fur); if(o.name==='mane') o.material.color.set(hColor.mane); };
+        horse.traverse(setFur);
     }
 
     window.onload = init;
