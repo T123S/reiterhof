@@ -2,12 +2,12 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Pferde-Simulator - High Detail</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Pferde-Simulator - Mobile & Fixes</title>
     <!-- Reverted to r128 for better stability in this environment -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #87ceeb; user-select: none; }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #87ceeb; user-select: none; -webkit-touch-callout: none; }
         
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         
@@ -21,6 +21,14 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             max-width: 280px;
             z-index: 10;
+        }
+        @media (max-width: 600px) {
+            #config-panel {
+                width: 80%;
+                left: 10%;
+                padding: 10px;
+                font-size: 0.9em;
+            }
         }
 
         h2 { margin: 0 0 10px 0; color: #2c3e50; font-size: 1.2rem; }
@@ -38,7 +46,7 @@
             position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.7); color: white; padding: 10px 25px;
             border-radius: 20px; font-weight: bold; font-size: 16px;
-            display: none; z-index: 5;
+            display: none; z-index: 5; white-space: nowrap;
         }
 
         #controls-hint {
@@ -46,6 +54,9 @@
             background: rgba(0,0,0,0.6); color: white; padding: 15px;
             border-radius: 8px; font-size: 14px; line-height: 1.6;
             z-index: 5;
+        }
+        @media (max-width: 800px) {
+            #controls-hint { display: none; } /* Hide text hints on mobile, use on-screen controls */
         }
 
         #minimap-container {
@@ -57,6 +68,16 @@
             overflow: hidden;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             z-index: 5;
+            transition: all 0.3s;
+        }
+        @media (max-width: 600px) {
+            #minimap-container {
+                width: 120px;
+                height: 120px;
+                top: 10px;
+                right: 10px;
+                border-width: 2px;
+            }
         }
         #minimap { width: 100%; height: 100%; display: block; }
 
@@ -66,6 +87,7 @@
             border: 3px solid #333; font-weight: bold; font-size: 20px;
             display: none; z-index: 20;
             box-shadow: 2px 2px 10px rgba(0,0,0,0.2);
+            pointer-events: none;
         }
 
         #feeding-modal {
@@ -81,6 +103,56 @@
         }
         .food-btn:hover { background: #e0e0e0; transform: scale(1.1); }
         #food-request { font-size: 40px; margin: 10px 0; }
+
+        /* --- MOBILE CONTROLS --- */
+        .mobile-ctrl {
+            pointer-events: auto;
+            position: absolute;
+            z-index: 20;
+            display: none; /* Shown via JS or Media Query if needed, but we'll force block for touch detection */
+        }
+        @media (hover: none) and (pointer: coarse), (max-width: 800px) {
+            .mobile-ctrl { display: block; }
+        }
+
+        /* D-PAD */
+        #dpad {
+            bottom: 30px; left: 30px;
+            width: 150px; height: 150px;
+        }
+        .d-btn {
+            position: absolute;
+            width: 50px; height: 50px;
+            background: rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; color: white; user-select: none;
+        }
+        .d-btn:active { background: rgba(255, 255, 255, 0.6); }
+        #btn-up { top: 0; left: 50px; }
+        #btn-down { bottom: 0; left: 50px; }
+        #btn-left { top: 50px; left: 0; }
+        #btn-right { top: 50px; right: 0; }
+
+        /* ACTION BUTTONS */
+        #actions {
+            bottom: 30px; right: 30px;
+            display: flex; flex-direction: column; gap: 15px; align-items: flex-end;
+        }
+        .action-btn {
+            width: 60px; height: 60px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 2px solid white;
+            border-radius: 50%;
+            color: white; font-weight: bold; font-size: 14px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .action-btn:active { background: rgba(0, 0, 0, 0.7); transform: scale(0.95); }
+        .trick-row { display: flex; gap: 10px; }
+        .trick-btn { width: 40px; height: 40px; font-size: 12px; background: rgba(230, 126, 34, 0.6); }
+
     </style>
 </head>
 <body>
@@ -112,6 +184,7 @@
         <canvas id="minimap" width="200" height="200"></canvas>
     </div>
 
+    <!-- Desktop Hints -->
     <div id="controls-hint">
         <strong>Steuerung:</strong><br>
         WASD / Pfeile: Bewegen<br>
@@ -119,6 +192,24 @@
         [F]: Füttern (im Stall)<br>
         [1-3]: Tricks (auf Reitplatz)<br>
         Maus: Kamera drehen
+    </div>
+
+    <!-- Mobile Controls -->
+    <div id="dpad" class="mobile-ctrl">
+        <div id="btn-up" class="d-btn">▲</div>
+        <div id="btn-down" class="d-btn">▼</div>
+        <div id="btn-left" class="d-btn">◀</div>
+        <div id="btn-right" class="d-btn">▶</div>
+    </div>
+
+    <div id="actions" class="mobile-ctrl">
+        <div class="trick-row">
+            <div class="action-btn trick-btn" id="btn-t1">1</div>
+            <div class="action-btn trick-btn" id="btn-t2">2</div>
+            <div class="action-btn trick-btn" id="btn-t3">3</div>
+        </div>
+        <div class="action-btn" id="btn-feed" style="background:rgba(46, 204, 113, 0.5)">F</div>
+        <div class="action-btn" id="btn-leash" style="background:rgba(52, 152, 219, 0.5)">L</div>
     </div>
 
     <div id="feeding-modal">
@@ -159,6 +250,7 @@
     let cameraAngle = { phi: Math.PI/3.5, theta: Math.PI/4, dist: 12 };
     let keys = { w: false, s: false, a: false, d: false };
     let mouse = { x: 0, y: 0, down: false };
+    let touchStart = { x:0, y:0 }; // For touch camera rotation
     let clock; 
 
     function init() {
@@ -202,19 +294,104 @@
         createLeash();
         createClouds();
 
+        // Keyboard Inputs
         window.addEventListener('keydown', onKeyDown);
         window.addEventListener('keyup', onKeyUp);
-        window.addEventListener('mousedown', () => mouse.down = true);
+        
+        // Mouse Camera
+        window.addEventListener('mousedown', (e) => mouse.down = true);
         window.addEventListener('mouseup', () => mouse.down = false);
         window.addEventListener('mousemove', onMouseMove);
+        
+        // Touch Camera (Swipe on background)
+        document.body.addEventListener('touchstart', (e) => {
+            if(e.target.tagName !== 'BUTTON' && !e.target.classList.contains('d-btn') && !e.target.classList.contains('action-btn')) {
+                touchStart.x = e.touches[0].clientX;
+                touchStart.y = e.touches[0].clientY;
+                mouse.down = true; // reusing mouse logic flag for logic simplicity
+            }
+        }, {passive: false});
+        
+        document.body.addEventListener('touchmove', (e) => {
+            if(mouse.down) {
+                const dx = e.touches[0].clientX - touchStart.x;
+                const dy = e.touches[0].clientY - touchStart.y;
+                touchStart.x = e.touches[0].clientX;
+                touchStart.y = e.touches[0].clientY;
+                
+                // Reuse mouse move logic
+                cameraAngle.theta -= dx * 0.005;
+                cameraAngle.phi -= dy * 0.005;
+                cameraAngle.phi = Math.max(0.1, Math.min(Math.PI/2 - 0.1, cameraAngle.phi));
+            }
+        }, {passive: false});
+        
+        document.body.addEventListener('touchend', () => mouse.down = false);
+
         window.addEventListener('resize', onResize);
 
+        setupMobileControls();
         animate();
     }
 
-    // --- TERRAIN MATH ---
+    function setupMobileControls() {
+        const bindBtn = (id, key) => {
+            const el = document.getElementById(id);
+            if(!el) return;
+            el.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; });
+            el.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
+            el.addEventListener('mousedown', (e) => { e.preventDefault(); keys[key] = true; });
+            el.addEventListener('mouseup', (e) => { e.preventDefault(); keys[key] = false; });
+        };
+
+        bindBtn('btn-up', 'w');
+        bindBtn('btn-down', 's');
+        bindBtn('btn-left', 'a');
+        bindBtn('btn-right', 'd');
+
+        // Actions
+        document.getElementById('btn-leash').addEventListener('touchstart', (e) => { e.preventDefault(); toggleLeash(); });
+        document.getElementById('btn-leash').addEventListener('click', (e) => { toggleLeash(); });
+
+        document.getElementById('btn-feed').addEventListener('touchstart', (e) => { e.preventDefault(); tryFeed(); });
+        document.getElementById('btn-feed').addEventListener('click', (e) => { tryFeed(); });
+
+        const trickBind = (id, type) => {
+            const el = document.getElementById(id);
+            const fn = () => { if(horseState === "GROUNDWORK") doTrick(type); };
+            el.addEventListener('touchstart', (e) => { e.preventDefault(); fn(); });
+            el.addEventListener('click', fn);
+        };
+        trickBind('btn-t1', 'REAR');
+        trickBind('btn-t2', 'BOW');
+        trickBind('btn-t3', 'SPIN');
+    }
+
+    // --- TERRAIN MATH & FLATTENING ---
     function getTerrainHeight(x, z) {
-        // Must match the formula used in createEnvironment
+        // FLATTENING ZONES to prevent clipping
+        
+        // 1. STABLE AREA
+        if(dist(x, z, ZONES.STABLE.x, ZONES.STABLE.z) < ZONES.STABLE.r + 2) {
+            return getBaseTerrainHeight(ZONES.STABLE.x, ZONES.STABLE.z);
+        }
+
+        // 2. ROUNDPEN AREA
+        if(dist(x, z, ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z) < ZONES.ROUNDPEN.r + 2) {
+            return getBaseTerrainHeight(ZONES.ROUNDPEN.x, ZONES.ROUNDPEN.z);
+        }
+
+        // 3. ARENA AREA (Square check)
+        if(x > ZONES.ARENA.x - 18 && x < ZONES.ARENA.x + 18 && 
+           z > ZONES.ARENA.z - 18 && z < ZONES.ARENA.z + 18) {
+            return getBaseTerrainHeight(ZONES.ARENA.x, ZONES.ARENA.z);
+        }
+
+        // Default wavy terrain
+        return getBaseTerrainHeight(x, z);
+    }
+
+    function getBaseTerrainHeight(x, z) {
         return Math.sin(x*0.04) * Math.cos(z*0.04) * 2 + 
                Math.sin(x*0.1) * Math.cos(z*0.1) * 0.5;
     }
@@ -227,8 +404,8 @@
         const pos = groundGeo.attributes.position;
         for(let i=0; i<pos.count; i++) {
             const x = pos.getX(i);
-            const z = pos.getY(i); // Z in PlaneGeometry is Y in the generation logic before rotation
-            const h = getTerrainHeight(x, z);
+            const z = pos.getY(i);
+            const h = getTerrainHeight(x, z); // Now uses flattening logic
             pos.setZ(i, h);
         }
         groundGeo.computeVertexNormals();
@@ -315,7 +492,7 @@
             const theta = (i/count) * Math.PI * 2;
             const x = cx + Math.cos(theta) * r;
             const z = cz + Math.sin(theta) * r;
-            const y = getTerrainHeight(x, z);
+            const y = getTerrainHeight(x, z); // Will match flattened terrain now
             
             const post = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.8, 8), woodMat);
             post.position.set(x, y + 0.9, z);
@@ -362,17 +539,30 @@
             scene.add(post);
         });
         
-        // Rails simplified (flat height based on center for simplicity, or it gets complex)
+        // Rails 
         const railMat = new THREE.MeshStandardMaterial({color: 0xffffff});
-        const railT = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, w, 8), railMat);
-        railT.rotation.z = Math.PI/2; railT.position.set(cx, baseY + height-0.2, cz - h/2); scene.add(railT);
+        // Note: For flattened zones, we can rely on baseY more safely
+        const useFlat = (cx === ZONES.ARENA.x); // If Arena, it's flat
         
-        const railB = railT.clone(); railB.position.z = cz + h/2; railB.position.y = getTerrainHeight(cx, cz+h/2) + height-0.2; scene.add(railB);
+        const railT = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, w, 8), railMat);
+        railT.rotation.z = Math.PI/2; 
+        let ry = useFlat ? baseY + height - 0.2 : getTerrainHeight(cx, cz-h/2) + height-0.2;
+        railT.position.set(cx, ry, cz - h/2); scene.add(railT);
+        
+        const railB = railT.clone(); 
+        railB.position.z = cz + h/2; 
+        ry = useFlat ? baseY + height - 0.2 : getTerrainHeight(cx, cz+h/2) + height-0.2;
+        railB.position.y = ry; scene.add(railB);
         
         const railL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, h, 8), railMat);
-        railL.rotation.x = Math.PI/2; railL.position.set(cx - w/2, getTerrainHeight(cx-w/2, cz) + height-0.2, cz); scene.add(railL);
+        railL.rotation.x = Math.PI/2; 
+        ry = useFlat ? baseY + height - 0.2 : getTerrainHeight(cx-w/2, cz) + height-0.2;
+        railL.position.set(cx - w/2, ry, cz); scene.add(railL);
         
-        const railR = railL.clone(); railR.position.x = cx + w/2; railR.position.y = getTerrainHeight(cx+w/2, cz) + height-0.2; scene.add(railR);
+        const railR = railL.clone(); 
+        railR.position.x = cx + w/2; 
+        ry = useFlat ? baseY + height - 0.2 : getTerrainHeight(cx+w/2, cz) + height-0.2;
+        railR.position.y = ry; scene.add(railR);
     }
 
     function createDetailedTree(x, z) {
@@ -637,24 +827,10 @@
             else { horseState = "IDLE"; resetHorsePose(0.05); }
         }
         
-        // Ensure horse is always on ground (unless doing tricks that lift it, but base pos is ground)
-        if(horseState !== "REAR_TRICK_ACTIVE") { // We will just check for trick flags or handle in reset
-             // Keep horse on ground, but allow Y offset from tricks in resetHorsePose
-             // Actually, resetHorsePose handles Y relative to 1.25. 
-             // We need base position.y to be terrain height.
-             // But horse.position is the group pivot (feet level).
+        if(horseState !== "REAR_TRICK_ACTIVE") {
              const hY = getTerrainHeight(horse.position.x, horse.position.z);
-             
-             // If doing REAR trick, we lift the group or rotate? 
-             // doTrick("REAR") moves horse.position.y to 2.0. This assumes flat ground.
-             // We need to apply terrain offset to that action.
-             // For now, simple fix: set Y to terrain height in Idle/Walk.
              if(horseState !== "GROUNDWORK") {
-                // If not in a special trick state that overrides Y
                 horse.position.y = hY; 
-             } else {
-                 // In Groundwork, tricks might modify Y manually relative to ground?
-                 // Let's make tricks relative to ground.
              }
         }
 
@@ -803,8 +979,6 @@
         horse.legBR.rotation.x = THREE.MathUtils.lerp(horse.legBR.rotation.x, 0, lerp);
         horse.neck.rotation.x = THREE.MathUtils.lerp(horse.neck.rotation.x, -0.4, lerp);
         
-        // Reset X/Z rotation to prevent getting stuck in "trick" pose or flipped
-        // Only if NOT in active trick (simple implementation checks state name)
         if(horseState !== "GROUNDWORK") {
             horse.rotation.z = THREE.MathUtils.lerp(horse.rotation.z, 0, lerp);
             horse.rotation.x = THREE.MathUtils.lerp(horse.rotation.x, 0, lerp);
@@ -813,7 +987,7 @@
         horse.tail.rotation.z = THREE.MathUtils.lerp(horse.tail.rotation.z, 0, lerp);
     }
 
-    // --- DRAW MINIMAP (Added) ---
+    // --- DRAW MINIMAP ---
     function drawMinimap() {
         if(!minimapCtx) return;
         const width = 200, height = 200;
@@ -847,11 +1021,11 @@
             minimapCtx.fillStyle = "white";
             minimapCtx.strokeStyle = "black";
             minimapCtx.lineWidth = 2;
+            // On mobile, hide text if too cluttered, but for now keep it
             minimapCtx.strokeText(z.label, mapX(z.x), mapZ(z.z));
             minimapCtx.fillText(z.label, mapX(z.x), mapZ(z.z));
         }
 
-        // Draw Horse
         if(horse) {
             minimapCtx.fillStyle = "#ff9800"; 
             minimapCtx.beginPath();
@@ -859,7 +1033,6 @@
             minimapCtx.fill();
         }
 
-        // Draw Player
         if(player) {
             minimapCtx.fillStyle = "#00bcd4";
             minimapCtx.beginPath();
@@ -913,13 +1086,11 @@
     }
 
     function doTrick(type) {
-        // Base height
         const hY = getTerrainHeight(horse.position.x, horse.position.z);
-        
         if(type === "REAR") {
             const tl = setInterval(() => { 
                 horse.rotation.x = -0.8; 
-                horse.position.y = hY + 1.0; // Lift up relative to terrain
+                horse.position.y = hY + 1.0; 
             }, 10);
             setTimeout(() => { clearInterval(tl); resetHorsePose(1.0); }, 1000); showBubble("Steigen!");
         }
@@ -976,10 +1147,9 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
     }
     function updateCamera() {
-        // Look at player head
         const pHeight = getTerrainHeight(player.position.x, player.position.z);
         const target = player.position.clone();
-        target.y = pHeight + 2; // Focus on head level
+        target.y = pHeight + 2; 
 
         const offset = new THREE.Vector3(
             cameraAngle.dist * Math.sin(cameraAngle.phi) * Math.sin(cameraAngle.theta),
@@ -1016,7 +1186,6 @@
         else sb.innerText = "Freizeit";
     }
 
-    // Config Panel Logic
     document.getElementById('startBtn').onclick = () => {
         updateColors();
         document.getElementById('config-panel').style.display = 'none';
