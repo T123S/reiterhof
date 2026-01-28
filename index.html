@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D Pferde-Simulator - V8: Fehlerbehebung & Natürlichkeit</title>
+    <title>3D Pferde-Simulator - V8.1: Tricks Fix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #87ceeb; user-select: none; -webkit-touch-callout: none; }
@@ -719,7 +719,7 @@
         const isInside = newPos.x > minX && newPos.x < maxX && newPos.z > minZ && newPos.z < maxZ;
         const wasInside = oldPos.x > minX && oldPos.x < maxX && oldPos.z > minZ && oldPos.z < maxZ;
         if (isInside !== wasInside) {
-            const doorZ = sZ + d/2; const dx = Math.abs(newPos.x - sX);   
+            const doorZ = sZ + d/2; const dx = Math.abs(newPos.x - sX);    
             if (newPos.z > minZ && newPos.z > maxZ - 2) { if (dx < 3.0) return false; }
             return true;
         }
@@ -798,6 +798,7 @@
     }
 
     function checkZones() {
+        if(horseState.includes("TRICK")) return;
         const p = horse.position;
         if(dist(p.x,p.z,ZONES.ROUNDPEN.x,ZONES.ROUNDPEN.z)<ZONES.ROUNDPEN.r) { if(horseState!=="ROUNDPEN"){horseState="ROUNDPEN"; activeTaskTimer=0; showBubble("Lauftraining!");} return; }
         if(dist(p.x,p.z,ZONES.PASTURE.x,ZONES.PASTURE.z)<ZONES.PASTURE.r) { if(horseState!=="GRAZING"){horseState="GRAZING"; activeTaskTimer=0;} return; }
@@ -873,31 +874,45 @@
     
     function doTrick(t) {
         const hy = getTerrainHeight(horse.position.x, horse.position.z);
+        const originalState = horseState;
+        horseState = "TRICK_" + t;
+
         if(t==="REAR") {
             const i = setInterval(()=>{
                 horse.rotation.x = -0.8; 
-                horse.position.y = hy + 1.1; 
+                horse.position.y = hy + 2.0; 
                 horse.legFL.rotation.x = -1.5; 
                 horse.legFR.rotation.x = -1.8;
                 horse.neck.rotation.x = 0.2; 
             },10);
-            setTimeout(()=>{clearInterval(i); resetHorse(1);},1200); showBubble("Steigen!"); AudioSys.playNeigh();
+            setTimeout(()=>{
+                clearInterval(i); 
+                resetHorse(1); 
+                horseState = originalState;
+            },1200); showBubble("Steigen!"); AudioSys.playNeigh();
         }
         if(t==="BOW") {
             const i = setInterval(()=>{
                 horse.rotation.x = 0.4; 
-                horse.position.y = hy - 0.2;
+                horse.position.y = hy + 0.2;
                 horse.legFL.rotation.x = -1.2;
                 horse.legFR.rotation.x = -1.2;
                 horse.neck.rotation.x = 0.5; 
             },10);
-            setTimeout(()=>{clearInterval(i); resetHorse(1);},1500); showBubble("Verbeugen!");
+            setTimeout(()=>{
+                clearInterval(i); 
+                resetHorse(1);
+                horseState = originalState;
+            },1500); showBubble("Verbeugen!");
         }
         if(t==="SPIN") {
             let c=0; const i = setInterval(()=>{
                 horse.rotation.y+=0.15; 
                 animateHorse(true, 0.5); 
-                c++; if(c>40)clearInterval(i);
+                c++; if(c>40) {
+                    clearInterval(i);
+                    horseState = originalState;
+                }
             },16);
             showBubble("Drehen!");
         }
