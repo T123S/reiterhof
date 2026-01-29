@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D Pferde-Simulator - V8.1: Tricks Fix</title>
+    <title>3D Pferde-Simulator - V9: Jahreszeiten & Weltgrenze</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #87ceeb; user-select: none; -webkit-touch-callout: none; }
@@ -47,12 +47,13 @@
             background: linear-gradient(135deg, var(--c1) 50%, var(--c2) 50%);
         }
 
-        button.start-btn {
+        button.start-btn, button.season-btn {
             width: 100%; padding: 12px; background: linear-gradient(135deg, #66bb6a, #43a047); color: white; 
             border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px;
             font-size: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.1s;
         }
-        button.start-btn:active { transform: scale(0.98); }
+        button.season-btn { background: linear-gradient(135deg, #3498db, #2980b9); margin-top: 5px; font-size: 0.9rem; }
+        button.start-btn:active, button.season-btn:active { transform: scale(0.98); }
 
         #audio-toggle {
             pointer-events: auto;
@@ -68,6 +69,14 @@
             background: rgba(0,0,0,0.6); color: white; padding: 8px 20px;
             border-radius: 30px; font-weight: 500; font-size: 14px;
             display: none; z-index: 5; white-space: nowrap; backdrop-filter: blur(4px);
+        }
+        
+        #season-indicator {
+            position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+            background: rgba(255,255,255,0.3); color: #333; padding: 4px 12px;
+            border-radius: 20px; font-weight: bold; font-size: 12px;
+            z-index: 4; backdrop-filter: blur(2px); text-transform: uppercase; letter-spacing: 1px;
+            display: none;
         }
 
         #controls-hint {
@@ -138,8 +147,10 @@
             border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 50%;
             color: white; font-weight: bold; font-size: 16px; display: flex; align-items: center; justify-content: center;
             backdrop-filter: blur(4px); box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            user-select: none;
         }
         .action-btn:active { transform: scale(0.9); background: rgba(255, 255, 255, 0.4); }
+        .action-btn.active { background: rgba(255, 235, 59, 0.6); border-color: #fff; transform: scale(0.95); }
         .trick-row { display: flex; gap: 8px; }
         .trick-btn { width: 40px; height: 40px; font-size: 14px; background: rgba(255, 165, 0, 0.3); }
     </style>
@@ -165,11 +176,16 @@
             <div class="swatch-row" id="horse-swatches"></div>
         </div>
 
+        <div class="selection-group">
+            <button class="season-btn" onclick="cycleSeason()">Jahreszeit wechseln</button>
+        </div>
+
         <button class="start-btn" id="startBtn">Ton an & Starten</button>
     </div>
 
     <div id="audio-toggle">🔇</div>
     <div id="status-bar">Bereit</div>
+    <div id="season-indicator">Frühling</div>
     <div id="bubble">Wieherr!</div>
     
     <div id="minimap-container">
@@ -179,6 +195,8 @@
     <div id="controls-hint">
         <strong>Steuerung:</strong><br>
         WASD / Pfeile: Bewegen<br>
+        Shift: Sprinten<br>
+        [J]: Jahreszeit<br>
         [L]: Leine (Pferd muss nah sein)<br>
         [F]: Füttern (im Stall)<br>
         [1-3]: Tricks (auf Reitplatz)<br>
@@ -198,6 +216,8 @@
             <div class="action-btn trick-btn" id="btn-t2">2</div>
             <div class="action-btn trick-btn" id="btn-t3">3</div>
         </div>
+        <!-- Sprint Button for Mobile -->
+        <div class="action-btn" id="btn-sprint" style="background:rgba(255, 193, 7, 0.4)">🏃</div>
         <div class="action-btn" id="btn-feed" style="background:rgba(46, 204, 113, 0.4)">F</div>
         <div class="action-btn" id="btn-leash" style="background:rgba(52, 152, 219, 0.4)">L</div>
     </div>
@@ -216,7 +236,7 @@
 </div>
 
 <script>
-    // --- PALETTES ---
+    // --- CONFIG & PALETTES ---
     const PALETTES = {
         PLAYER: {
             CLASSIC: { shirt: "#3498db", pants: "#2c3e50" },
@@ -239,7 +259,17 @@
         }
     };
 
+    const SEASONS = ["FRÜHLING", "SOMMER", "HERBST", "WINTER"];
+    const SEASON_DATA = {
+        FRÜHLING: { groundA: 0x388e3c, groundB: 0x4caf50, leaf: 0x2e7d32, sky: 0x87ceeb, fog: 0x87ceeb, snow: false },
+        SOMMER:   { groundA: 0x558b2f, groundB: 0x8bc34a, leaf: 0x1b5e20, sky: 0x4fc3f7, fog: 0xb3e5fc, snow: false },
+        HERBST:   { groundA: 0x5d4037, groundB: 0x8d6e63, leaf: 0xd84315, sky: 0xffcc80, fog: 0xffe0b2, snow: false },
+        WINTER:   { groundA: 0xe0e0e0, groundB: 0xffffff, leaf: 0xeeeeee, sky: 0xb0bec5, fog: 0xcfcfcf, snow: true }
+    };
+
     let selectedSettings = { outfit: 'CLASSIC', skin: 'LIGHT', horse: 'BAY' };
+    let currentSeasonIdx = 0;
+    let groundMesh, snowSystem;
 
     function initUI() {
         const createSwatches = (containerId, category, key) => {
@@ -290,10 +320,14 @@
     let isLeashed = false, gameState = "FREE", horseState = "IDLE"; 
     let activeTaskTimer = 0, stepTimer = 0; 
     let cameraAngle = { phi: Math.PI/3.2, theta: Math.PI/4, dist: 14 };
-    let keys = { w: false, s: false, a: false, d: false };
+    let keys = { w: false, s: false, a: false, d: false, shift: false };
+    let mobileSprint = false;
     let mouse = { x: 0, y: 0, down: false };
     let touchStart = { x:0, y:0 };
     let clock; 
+
+    // WORLD BOUNDARY LIMIT
+    const WORLD_LIMIT = 165; 
 
     const ZONES = {
         STABLE: { x: 50, z: -50, r: 20, color: "#8d6e63", label: "Stall" },
@@ -337,6 +371,7 @@
         minimapCtx = document.getElementById('minimap').getContext('2d');
 
         createEnvironment();
+        createSnowSystem();
         createPlayer();
         createImprovedHorse();
         createLeash();
@@ -369,6 +404,9 @@
         setupMobileControls();
         document.getElementById('audio-toggle').onclick = () => AudioSys.toggle();
         
+        // Initial Season apply
+        updateSeasonGraphics();
+
         animate();
     }
 
@@ -382,18 +420,118 @@
             el.addEventListener('mousedown', press); el.addEventListener('mouseup', release);
         };
         bindBtn('btn-up', 'w'); bindBtn('btn-down', 's'); bindBtn('btn-left', 'a'); bindBtn('btn-right', 'd');
+        
         const btnLeash = document.getElementById('btn-leash');
         const toggleL = (e) => { e.preventDefault(); toggleLeash(); };
         btnLeash.addEventListener('touchstart', toggleL); btnLeash.addEventListener('mousedown', toggleL);
+        
         const btnFeed = document.getElementById('btn-feed');
         const doFeed = (e) => { e.preventDefault(); tryFeed(); };
         btnFeed.addEventListener('touchstart', doFeed); btnFeed.addEventListener('mousedown', doFeed);
+
+        // Sprint Mobile Button
+        const btnSprint = document.getElementById('btn-sprint');
+        const toggleSprint = (e) => { 
+            e.preventDefault(); 
+            mobileSprint = !mobileSprint; 
+            btnSprint.classList.toggle('active', mobileSprint);
+        };
+        btnSprint.addEventListener('touchstart', toggleSprint); btnSprint.addEventListener('mousedown', toggleSprint);
+
         const trickBind = (id, type) => {
             const el = document.getElementById(id);
             const fn = (e) => { e.preventDefault(); if(horseState==="GROUNDWORK") doTrick(type); };
             el.addEventListener('touchstart', fn); el.addEventListener('mousedown', fn);
         };
         trickBind('btn-t1', 'REAR'); trickBind('btn-t2', 'BOW'); trickBind('btn-t3', 'SPIN');
+    }
+
+    // --- SEASON SYSTEM ---
+    window.cycleSeason = function() {
+        currentSeasonIdx = (currentSeasonIdx + 1) % SEASONS.length;
+        updateSeasonGraphics();
+    };
+
+    function updateSeasonGraphics() {
+        const sName = SEASONS[currentSeasonIdx];
+        const data = SEASON_DATA[sName];
+        
+        // UI
+        const ind = document.getElementById('season-indicator');
+        ind.innerText = sName; ind.style.display = 'block';
+
+        // Sky & Fog
+        scene.background.setHex(data.sky);
+        scene.fog.color.setHex(data.fog);
+
+        // Ground Colors
+        if(groundMesh) {
+            const colors = groundMesh.geometry.attributes.color;
+            const count = colors.count;
+            const pos = groundMesh.geometry.attributes.position;
+            const cA = new THREE.Color(data.groundA);
+            const cB = new THREE.Color(data.groundB);
+            const cDirt = new THREE.Color(0x795548);
+            const cSand = new THREE.Color(0xe6cea0);
+            
+            for(let i=0; i<count; i++) {
+                const x = pos.getX(i); const z = pos.getY(i); const h = pos.getZ(i);
+                let c = new THREE.Color().lerpColors(cA, cB, Math.random()*0.5 + 0.5);
+                
+                const d = Math.sqrt(x*x + z*z);
+                if(sName !== "WINTER") { // Keep dirt in non-winter
+                    if(d > 80) c.lerp(cDirt, (h/10));
+                    if(dist(x,z,ZONES.STABLE.x,ZONES.STABLE.z) < 25) c.lerp(cDirt, 0.8);
+                    if(dist(x,z,ZONES.ARENA.x,ZONES.ARENA.z) < 20) c.lerp(cSand, 0.5);
+                    if(dist(x,z,ZONES.POND.x,ZONES.POND.z) < 13) c.setHex(0xe6cea0);
+                } else {
+                     // In Winter, cover almost everything in white/grey
+                     if(dist(x,z,ZONES.POND.x,ZONES.POND.z) < 13) c.setHex(0xb0bec5); // Frozen pond
+                }
+                colors.setXYZ(i, c.r, c.g, c.b);
+            }
+            colors.needsUpdate = true;
+        }
+
+        // Tree Leaves
+        const leafColor = new THREE.Color(data.leaf);
+        scene.traverse(obj => {
+            if(obj.name === "foliage") {
+                obj.material.color.copy(leafColor);
+                obj.visible = (sName !== "WINTER"); // Hide leaves in winter? Or make them white. Let's hide them for deciduous look
+                if(sName === "WINTER") obj.visible = false; 
+                else obj.visible = true;
+            }
+        });
+
+        // Snow
+        if(snowSystem) snowSystem.visible = data.snow;
+    }
+
+    function createSnowSystem() {
+        const particleCount = 1500;
+        const geo = new THREE.BufferGeometry();
+        const pos = [];
+        for(let i=0; i<particleCount; i++) {
+            pos.push((Math.random()-0.5)*300);
+            pos.push(Math.random()*60);
+            pos.push((Math.random()-0.5)*300);
+        }
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.4, transparent: true, opacity: 0.8 });
+        snowSystem = new THREE.Points(geo, mat);
+        snowSystem.visible = false;
+        scene.add(snowSystem);
+    }
+
+    function animateSnow() {
+        if(!snowSystem || !snowSystem.visible) return;
+        const positions = snowSystem.geometry.attributes.position.array;
+        for(let i=1; i<positions.length; i+=3) {
+            positions[i] -= 0.2;
+            if(positions[i] < 0) positions[i] = 60;
+        }
+        snowSystem.geometry.attributes.position.needsUpdate = true;
     }
 
     function getTerrainHeight(x, z) {
@@ -414,27 +552,19 @@
         const geo = new THREE.PlaneGeometry(350, 350, 128, 128);
         const count = geo.attributes.position.count;
         geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
-        const pos = geo.attributes.position; const colors = geo.attributes.color;
-        const cGreen = new THREE.Color(0x4caf50); const cDarkGreen = new THREE.Color(0x388e3c);
-        const cDirt = new THREE.Color(0x795548); const cSand = new THREE.Color(0xe6cea0);
-
+        const pos = geo.attributes.position; 
+        
+        // Initial terrain height set
         for(let i=0; i<count; i++) {
             const x = pos.getX(i); const z = pos.getY(i); const h = getTerrainHeight(x, z);
             pos.setZ(i, h);
-            let c = new THREE.Color().lerpColors(cDarkGreen, cGreen, Math.random()*0.5 + 0.5);
-            const d = Math.sqrt(x*x + z*z);
-            if(d > 80) c.lerp(cDirt, (h/10));
-            if(dist(x,z,ZONES.STABLE.x,ZONES.STABLE.z) < 25) c.lerp(cDirt, 0.8);
-            if(dist(x,z,ZONES.ARENA.x,ZONES.ARENA.z) < 20) c.lerp(cSand, 0.5);
-            if(dist(x,z,ZONES.POND.x,ZONES.POND.z) < 13) c.setHex(0xe6cea0);
-            colors.setXYZ(i, c.r, c.g, c.b);
         }
         geo.computeVertexNormals();
         const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: false });
-        const ground = new THREE.Mesh(geo, mat);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        scene.add(ground);
+        groundMesh = new THREE.Mesh(geo, mat);
+        groundMesh.rotation.x = -Math.PI / 2;
+        groundMesh.receiveShadow = true;
+        scene.add(groundMesh);
 
         const water = new THREE.Mesh(new THREE.CircleGeometry(11, 32), new THREE.MeshStandardMaterial({color: 0x4fc3f7, opacity:0.8, transparent:true}));
         water.rotation.x = -Math.PI/2; water.position.set(ZONES.POND.x, -1.8, ZONES.POND.z);
@@ -467,7 +597,9 @@
         const leafMat = new THREE.MeshStandardMaterial({color: 0x2e7d32});
         [[0,3.5,0,1.8], [0,4.5,0,1.4], [0,5.2,0,1.0], [1,3.8,0,1.2], [-1,4.0,0,1.2]].forEach(d => {
             const l = new THREE.Mesh(new THREE.DodecahedronGeometry(d[3], 0), leafMat);
-            l.position.set(d[0], d[1], d[2]); l.castShadow=true; group.add(l);
+            l.position.set(d[0], d[1], d[2]); l.castShadow=true; 
+            l.name = "foliage"; // Tag for seasonal changes
+            group.add(l);
         });
         const s = 0.8 + Math.random()*0.6; group.scale.set(s,s,s); group.position.set(x, y, z);
         scene.add(group);
@@ -476,7 +608,10 @@
     function createGrassTuft(x, z) {
         const y = getTerrainHeight(x, z); const geo = new THREE.ConeGeometry(0.1, 0.4, 3); const mat = new THREE.MeshStandardMaterial({color: 0x689f38});
         for(let i=0; i<3; i++) {
-            const b = new THREE.Mesh(geo, mat); b.position.set(x+(Math.random()-0.5)*0.2, y+0.2, z+(Math.random()-0.5)*0.2); b.rotation.x=(Math.random()-0.5)*0.5; scene.add(b);
+            const b = new THREE.Mesh(geo, mat); b.position.set(x+(Math.random()-0.5)*0.2, y+0.2, z+(Math.random()-0.5)*0.2); 
+            b.rotation.x=(Math.random()-0.5)*0.5; 
+            b.name = "foliage"; // Grass also changes
+            scene.add(b);
         }
     }
 
@@ -728,7 +863,12 @@
 
     function updatePhysics(dt) {
         if(gameState !== "FREE") return;
-        const speed = 7.0 * dt;
+        
+        // SPRINT LOGIC
+        const isSprinting = (keys.shift || mobileSprint);
+        const baseSpeed = isSprinting ? 14.0 : 7.0; // Sprint is 2x speed
+        const speed = baseSpeed * dt;
+
         const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y=0; fwd.normalize();
         const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), fwd).normalize();
         const move = new THREE.Vector3();
@@ -739,14 +879,25 @@
         if(move.lengthSq() > 0) {
             move.normalize();
             const nextPos = player.position.clone().addScaledVector(move, speed);
-            if(nextPos.distanceTo(horse.position) <= 1.2) {} 
-            else if(checkStableCollision(player.position, nextPos)) {}
-            else {
+            
+            // WORLD BOUNDARY CHECK
+            const distFromCenter = Math.sqrt(nextPos.x*nextPos.x + nextPos.z*nextPos.z);
+
+            if(distFromCenter > WORLD_LIMIT) {
+                showBubble("Das Ende der Welt!");
+            } else if(nextPos.distanceTo(horse.position) <= 1.2) {
+                // Collision with horse
+            } else if(checkStableCollision(player.position, nextPos)) {
+                // Collision with stable
+            } else {
                 player.position.copy(nextPos); moving = true;
                 const tr = Math.atan2(move.x, move.z); let rd = tr - player.rotation.y;
                 while(rd>Math.PI)rd-=Math.PI*2; while(rd<-Math.PI)rd+=Math.PI*2;
                 player.rotation.y += rd * 0.2;
-                stepTimer += dt; if(stepTimer > 0.4) { AudioSys.playStep(); stepTimer=0; }
+                
+                // Faster step sound when sprinting
+                const stepInterval = isSprinting ? 0.25 : 0.4;
+                stepTimer += dt; if(stepTimer > stepInterval) { AudioSys.playStep(); stepTimer=0; }
             }
         }
         player.position.y = getTerrainHeight(player.position.x, player.position.z);
@@ -763,7 +914,8 @@
         }
 
         if(moving) {
-            const t = Date.now()*0.015;
+            const freq = isSprinting ? 0.025 : 0.015; // Faster leg anim
+            const t = Date.now()*freq;
             player.legL.rotation.x = Math.sin(t)*0.8; player.legR.rotation.x = Math.sin(t+Math.PI)*0.8;
         } else {
             player.legL.rotation.x = THREE.MathUtils.lerp(player.legL.rotation.x, 0, 0.2);
@@ -775,13 +927,17 @@
             const distP = player.position.distanceTo(horse.position);
             if(distP > 2.8) {
                 const dir = new THREE.Vector3().subVectors(player.position, horse.position).normalize(); dir.y=0;
-                const nextHPos = horse.position.clone().addScaledVector(dir, 6.0*dt);
+                
+                // Horse also sprints if player runs fast and is far
+                const horseSpeed = (distP > 5.0) ? 12.0 : 6.0; 
+                
+                const nextHPos = horse.position.clone().addScaledVector(dir, horseSpeed*dt);
                 if(nextHPos.distanceTo(player.position) > 1.2) {
                     horse.position.copy(nextHPos);
                     const hTr = Math.atan2(dir.x, dir.z); let hRd = hTr - horse.rotation.y;
                     while(hRd>Math.PI)hRd-=Math.PI*2; while(hRd<-Math.PI)hRd+=Math.PI*2;
                     horse.rotation.y += hRd*0.1;
-                    animateHorse(true);
+                    animateHorse(true, horseSpeed/6.0);
                 } else animateHorse(false);
             } else animateHorse(false);
             updateLeash();
@@ -956,6 +1112,10 @@
         const dt = clock.getDelta();
         if(gameState==="FREE") updatePhysics(dt);
         birds.forEach(b => b.update());
+        
+        // Snow animation
+        if(snowSystem && snowSystem.visible) animateSnow();
+
         drawMinimap();
         
         const th = getTerrainHeight(player.position.x, player.position.z);
@@ -971,8 +1131,26 @@
         renderer.render(scene, camera);
     }
     
-    function onKeyDown(e){const k=e.key.toLowerCase(); if(['w','arrowup'].includes(k))keys.w=true; if(['s','arrowdown'].includes(k))keys.s=true; if(['a','arrowleft'].includes(k))keys.a=true; if(['d','arrowright'].includes(k))keys.d=true; if(k==='l')toggleLeash(); if(k==='f')tryFeed(); if(horseState==="GROUNDWORK" && ['1','2','3'].includes(k)) doTrick(k=='1'?'REAR':k=='2'?'BOW':'SPIN');}
-    function onKeyUp(e){const k=e.key.toLowerCase(); if(['w','arrowup'].includes(k))keys.w=false; if(['s','arrowdown'].includes(k))keys.s=false; if(['a','arrowleft'].includes(k))keys.a=false; if(['d','arrowright'].includes(k))keys.d=false;}
+    function onKeyDown(e){
+        const k=e.key.toLowerCase(); 
+        if(['w','arrowup'].includes(k))keys.w=true; 
+        if(['s','arrowdown'].includes(k))keys.s=true; 
+        if(['a','arrowleft'].includes(k))keys.a=true; 
+        if(['d','arrowright'].includes(k))keys.d=true; 
+        if(k==='shift') keys.shift=true;
+        if(k==='l')toggleLeash(); 
+        if(k==='f')tryFeed(); 
+        if(k==='j')cycleSeason();
+        if(horseState==="GROUNDWORK" && ['1','2','3'].includes(k)) doTrick(k=='1'?'REAR':k=='2'?'BOW':'SPIN');
+    }
+    function onKeyUp(e){
+        const k=e.key.toLowerCase(); 
+        if(['w','arrowup'].includes(k))keys.w=false; 
+        if(['s','arrowdown'].includes(k))keys.s=false; 
+        if(['a','arrowleft'].includes(k))keys.a=false; 
+        if(['d','arrowright'].includes(k))keys.d=false;
+        if(k==='shift') keys.shift=false;
+    }
     function onMouseMove(e){if(mouse.down){cameraAngle.theta-=e.movementX*0.005; cameraAngle.phi-=e.movementY*0.005; cameraAngle.phi=Math.max(0.1,Math.min(Math.PI/2-0.1,cameraAngle.phi));}}
     function onResize(){camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight);}
     function dist(x1,z1,x2,z2){return Math.sqrt((x2-x1)**2+(z2-z1)**2);}
