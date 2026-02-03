@@ -485,8 +485,8 @@
                     if(dist(x,z,ZONES.ARENA.x,ZONES.ARENA.z) < 20) c.lerp(cSand, 0.5);
                     if(dist(x,z,ZONES.POND.x,ZONES.POND.z) < 13) c.setHex(0xe6cea0);
                 } else {
-                     // In Winter, cover almost everything in white/grey
-                     if(dist(x,z,ZONES.POND.x,ZONES.POND.z) < 13) c.setHex(0xb0bec5); // Frozen pond
+                      // In Winter, cover almost everything in white/grey
+                      if(dist(x,z,ZONES.POND.x,ZONES.POND.z) < 13) c.setHex(0xb0bec5); // Frozen pond
                 }
                 colors.setXYZ(i, c.r, c.g, c.b);
             }
@@ -750,31 +750,64 @@
     // --- CHARACTERS ---
     function createPlayer() {
         player = new THREE.Group();
-        const skinMat = new THREE.MeshStandardMaterial({color: 0xffdbac});
-        const shirtMat = new THREE.MeshStandardMaterial({color: 0x3498db});
-        const pantsMat = new THREE.MeshStandardMaterial({color: 0x2c3e50});
-        const hairMat = new THREE.MeshStandardMaterial({color: 0x3e2723});
+        const skinMat = new THREE.MeshStandardMaterial({color: 0xffdbac, flatShading: false});
+        const shirtMat = new THREE.MeshStandardMaterial({color: 0x3498db, flatShading: false});
+        const pantsMat = new THREE.MeshStandardMaterial({color: 0x2c3e50, flatShading: false});
+        const hairMat = new THREE.MeshStandardMaterial({color: 0x3e2723, flatShading: false});
+        const shoeMat = new THREE.MeshStandardMaterial({color: 0x111111});
 
-        const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.2, 0.6, 16), shirtMat);
+        // Torso - smoother
+        const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.2, 0.6, 32), shirtMat);
         torso.position.y = 1.3; torso.name = "shirt"; torso.castShadow=true; player.add(torso);
+        
+        // Neck
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.15, 16), skinMat);
+        neck.position.y = 1.65; neck.name="skin"; player.add(neck);
+
         const headGroup = new THREE.Group(); headGroup.position.y = 1.8;
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), skinMat);
+        // Head - smoother
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 32, 32), skinMat);
         head.name = "skin"; head.castShadow=true; headGroup.add(head);
-        const hairTop = new THREE.Mesh(new THREE.SphereGeometry(0.23, 16, 16, 0, Math.PI*2, 0, Math.PI/2.5), hairMat);
+        
+        // Hair - smoother
+        const hairTop = new THREE.Mesh(new THREE.SphereGeometry(0.23, 32, 32, 0, Math.PI*2, 0, Math.PI/2.5), hairMat);
         hairTop.rotation.x = Math.PI; hairTop.position.y = 0.05; hairTop.name="hair"; headGroup.add(hairTop);
         const ponyTail = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), hairMat);
         ponyTail.position.set(0, 0, -0.2); ponyTail.scale.set(1, 1.5, 1); ponyTail.name="hair"; headGroup.add(ponyTail);
         player.add(headGroup);
 
-        const armGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.5, 8);
-        const armL = new THREE.Mesh(armGeo, shirtMat); armL.position.set(-0.32, 1.4, 0); armL.rotation.z=0.2; player.add(armL);
-        const armR = new THREE.Mesh(armGeo, shirtMat); armR.position.set(0.32, 1.4, 0); armR.rotation.z=-0.2; player.add(armR);
+        // Arms & Hands
+        const armGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.5, 16);
+        const handGeo = new THREE.SphereGeometry(0.07, 16, 16);
 
-        const legGeo = new THREE.CylinderGeometry(0.09, 0.08, 0.75, 8);
-        const legL = new THREE.Mesh(legGeo, pantsMat); legL.position.set(-0.12, 0.65, 0); 
-        const gL = new THREE.Group(); gL.add(legL); legL.position.y=-0.375; gL.position.set(-0.12, 1.0, 0); player.legL=gL; player.add(gL);
-        const legR = new THREE.Mesh(legGeo, pantsMat); legR.position.set(0.12, 0.65, 0);
-        const gR = new THREE.Group(); gR.add(legR); legR.position.y=-0.375; gR.position.set(0.12, 1.0, 0); player.legR=gR; player.add(gR);
+        const armLMesh = new THREE.Mesh(armGeo, shirtMat); 
+        armLMesh.position.set(-0.32, 1.4, 0); armLMesh.rotation.z=0.2; player.add(armLMesh);
+        const handL = new THREE.Mesh(handGeo, skinMat); handL.name="skin";
+        handL.position.set(0, -0.3, 0); armLMesh.add(handL);
+
+        const armRMesh = new THREE.Mesh(armGeo, shirtMat); 
+        armRMesh.position.set(0.32, 1.4, 0); armRMesh.rotation.z=-0.2; player.add(armRMesh);
+        const handR = new THREE.Mesh(handGeo, skinMat); handR.name="skin";
+        handR.position.set(0, -0.3, 0); armRMesh.add(handR);
+
+        // Legs & Shoes
+        const legGeo = new THREE.CylinderGeometry(0.09, 0.08, 0.75, 16);
+        const shoeGeo = new THREE.BoxGeometry(0.12, 0.1, 0.25);
+        
+        const createLeg = (x) => {
+             const g = new THREE.Group(); 
+             g.position.set(x, 1.0, 0);
+             const leg = new THREE.Mesh(legGeo, pantsMat);
+             leg.position.y = -0.375; leg.castShadow=true;
+             g.add(leg);
+             const shoe = new THREE.Mesh(shoeGeo, shoeMat);
+             shoe.position.set(0, -0.8, 0.05);
+             g.add(shoe);
+             return g;
+        }
+
+        player.legL = createLeg(-0.12); player.add(player.legL);
+        player.legR = createLeg(0.12); player.add(player.legR);
 
         player.position.set(0, 0, 10); scene.add(player);
     }
@@ -782,50 +815,78 @@
     // --- REALISTIC HORSE V2 ---
     function createImprovedHorse() {
         horse = new THREE.Group();
-        const furMat = new THREE.MeshStandardMaterial({color: 0x8d6e63});
-        const maneMat = new THREE.MeshStandardMaterial({color: 0x3e2723});
-        const hoofMat = new THREE.MeshStandardMaterial({color: 0x111111});
+        const furMat = new THREE.MeshStandardMaterial({color: 0x8d6e63, flatShading:false});
+        const maneMat = new THREE.MeshStandardMaterial({color: 0x3e2723, flatShading:false});
+        const hoofMat = new THREE.MeshStandardMaterial({color: 0x111111, flatShading:false});
+        const eyeMat = new THREE.MeshBasicMaterial({color: 0x000000});
 
-        const chest = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 16), furMat);
+        // Body: 3 parts blended, smoother segments
+        const chest = new THREE.Mesh(new THREE.SphereGeometry(0.6, 32, 32), furMat);
         chest.scale.set(0.9, 1.1, 1.1); chest.position.set(0, 1.3, 0.45); chest.name="fur"; chest.castShadow=true; horse.add(chest);
-        const rump = new THREE.Mesh(new THREE.SphereGeometry(0.62, 16, 16), furMat);
+        
+        const rump = new THREE.Mesh(new THREE.SphereGeometry(0.62, 32, 32), furMat);
         rump.scale.set(0.95, 1.0, 1.1); rump.position.set(0, 1.35, -0.55); rump.name="fur"; rump.castShadow=true; horse.add(rump);
-        const mid = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.58, 1.0, 12), furMat);
+        
+        const mid = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.58, 1.0, 32), furMat);
         mid.rotation.x = Math.PI/2; mid.position.set(0, 1.3, -0.05); mid.name="fur"; horse.add(mid);
 
+        // Neck
         const neckGroup = new THREE.Group();
         neckGroup.position.set(0, 1.6, 0.7);
-        const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.5, 1.1, 12), furMat);
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.5, 1.1, 32), furMat);
         neck.position.set(0, 0.45, 0); neck.rotation.x = -0.5; neck.name="fur"; neck.castShadow=true; neckGroup.add(neck);
 
+        // Mane
+        const mane = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.0, 0.25), maneMat);
+        mane.position.set(0, 0.5, -0.28); mane.rotation.x = -0.5; mane.name="mane"; neckGroup.add(mane);
+
+        // Head Group
         const headGroup = new THREE.Group();
         headGroup.position.set(0, 0.9, 0.4); headGroup.rotation.x = 0.5;
+        
+        // Skull
         const skull = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.7, 0.32), furMat);
         skull.rotation.x = Math.PI/2; skull.name="fur"; skull.castShadow=true; headGroup.add(skull);
+        
+        // Snout
         const snout = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.4, 0.26), furMat);
         snout.rotation.x = Math.PI/2; snout.position.z = 0.5; snout.name="fur"; headGroup.add(snout);
+
+        // Ears
+        const earGeo = new THREE.ConeGeometry(0.06, 0.15, 8);
+        const earL = new THREE.Mesh(earGeo, furMat);
+        earL.position.set(-0.1, -0.15, 0.1); earL.rotation.x = -0.5; earL.rotation.z = -0.2; earL.name="fur"; headGroup.add(earL);
+        const earR = new THREE.Mesh(earGeo, furMat);
+        earR.position.set(0.1, -0.15, 0.1); earR.rotation.x = -0.5; earR.rotation.z = 0.2; earR.name="fur"; headGroup.add(earR);
+
+        // Eyes
+        const eyeGeo = new THREE.SphereGeometry(0.04, 8, 8);
+        const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+        eyeL.position.set(-0.18, 0, 0.15); headGroup.add(eyeL);
+        const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+        eyeR.position.set(0.18, 0, 0.15); headGroup.add(eyeR);
+
         neckGroup.add(headGroup);
         horse.headGroup = headGroup;
-
-        const mane = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.0, 0.2), maneMat);
-        mane.position.set(0, 0.5, -0.28); mane.rotation.x = -0.5; mane.name="mane"; neckGroup.add(mane);
         horse.add(neckGroup); horse.neck = neckGroup;
 
+        // Tail
         const tailGroup = new THREE.Group();
         tailGroup.position.set(0, 1.5, -1.0);
-        const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.2, 0.9, 8), maneMat);
+        const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.25, 0.9, 16), maneMat);
         tail.position.set(0, -0.3, -0.2); tail.rotation.x = 0.5; tail.name="mane"; tailGroup.add(tail);
         horse.add(tailGroup); horse.tail = tailGroup;
 
+        // Legs (smoother)
         function createLeg(x, z, isBack) {
             const g = new THREE.Group(); g.position.set(x, 1.1, z);
-            const thigh = new THREE.Mesh(new THREE.CylinderGeometry(isBack?0.2:0.15, 0.12, 0.65, 8), furMat);
+            const thigh = new THREE.Mesh(new THREE.CylinderGeometry(isBack?0.2:0.15, 0.12, 0.65, 16), furMat);
             thigh.position.y = -0.3; thigh.name="fur"; thigh.castShadow=true; g.add(thigh);
-            const joint = new THREE.Mesh(new THREE.SphereGeometry(0.13), furMat);
+            const joint = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 16), furMat);
             joint.position.y = -0.65; joint.name="fur"; g.add(joint);
-            const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.55, 8), furMat);
+            const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.55, 16), furMat);
             shin.position.y = -0.95; shin.name="fur"; shin.castShadow=true; g.add(shin);
-            const hoof = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.1, 8), hoofMat);
+            const hoof = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.1, 16), hoofMat);
             hoof.position.y = -1.25; hoof.castShadow=true; g.add(hoof);
             return g;
         }
