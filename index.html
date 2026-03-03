@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>2.5D Pappaufsteller Pferde-Simulator v2</title>
+    
+    <!-- Favicon / App-Icon (Skalierbares SVG, passend zum Fuchsbraun des Pferdes) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2387ceeb'/><path d='M70,90L30,90C30,70,20,60,15,45C10,30,25,25,35,30C40,20,50,15,55,15C60,5,65,5,65,15C75,25,80,45,80,60C80,75,70,80,70,90Z' fill='%23c85e2b'/><path d='M65,15C75,25,80,45,80,60C80,75,70,80,70,90L85,90C90,75,90,45,75,15Z' fill='%23151515'/><circle cx='45' cy='35' r='4' fill='%23151515'/></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2387ceeb'/><path d='M70,90L30,90C30,70,20,60,15,45C10,30,25,25,35,30C40,20,50,15,55,15C60,5,65,5,65,15C75,25,80,45,80,60C80,75,70,80,70,90Z' fill='%23c85e2b'/><path d='M65,15C75,25,80,45,80,60C80,75,70,80,70,90L85,90C90,75,90,45,75,15Z' fill='%23151515'/><circle cx='45' cy='35' r='4' fill='%23151515'/></svg>">
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #87ceeb; user-select: none; -webkit-touch-callout: none; }
@@ -252,11 +257,11 @@
             PALE: { skin: "#ffe0bd", hair: "#a93226" }
         },
         HORSE: {
-            BAY: { fur: "#6d4c41", mane: "#1a1a1a" },
-            BLACK: { fur: "#212121", mane: "#333333" },
-            CHESTNUT: { fur: "#a1887f", mane: "#8d6e63" },
-            GREY: { fur: "#f5f5f5", mane: "#cccccc" },
-            PALOMINO: { fur: "#ffecb3", mane: "#fdfefe" }
+            // "PHOTO" basiert exakt auf den Farben des hochgeladenen Bildes!
+            PHOTO: { fur: "#c85e2b", mane: "#151515", dark: "#953d15", leg: "#1a1a1a", hoof: "#d4c8bc", sock: "#eeeeee" },
+            BLACK: { fur: "#212121", mane: "#000000", dark: "#111111", leg: "#000000", hoof: "#333333", sock: "#212121" },
+            GREY: { fur: "#e0e0e0", mane: "#cccccc", dark: "#a0a0a0", leg: "#c0c0c0", hoof: "#888888", sock: "#ffffff" },
+            PALOMINO: { fur: "#ffecb3", mane: "#fdfefe", dark: "#e0c080", leg: "#ffecb3", hoof: "#e0c080", sock: "#fdfefe" }
         }
     };
 
@@ -268,7 +273,8 @@
         WINTER:   { groundA: 0xe0e0e0, groundB: 0xffffff, leaf: "#eeeeee", sky: 0xb0bec5, fog: 0xcfcfcf, snow: true }
     };
 
-    let selectedSettings = { outfit: 'CLASSIC', skin: 'LIGHT', horse: 'BAY' };
+    // Standard ist nun das "PHOTO" Pferd
+    let selectedSettings = { outfit: 'CLASSIC', skin: 'LIGHT', horse: 'PHOTO' };
     let currentSeasonIdx = 0;
     let groundMesh, snowSystem;
 
@@ -412,79 +418,152 @@
         }, 256, 256);
     }
 
-    // KOMPLETT NEU GEZEICHNETES PFERD
+    // EXAKTER NACHBAU DES FOTOS
     function generateHorseTexture(settings) {
-        // Wir verwenden feste Farben basierend auf dem Bild, ignorieren die Palette für die Form
-        const furColor = "#a0522d"; // Sattes Braun
-        const maneColor = "#1a1a1a"; // Schwarz
-        const legColor = "#333333"; // Dunkle Beine
-        const hoofColor = "#222222";
-        const whiteMarking = "#f0f0f0";
+        const config = PALETTES.HORSE[settings.horse];
+        const furColor = config.fur;
+        const maneColor = config.mane;
+        const legColor = config.leg;
+        const hoofColor = config.hoof;
+        const whiteMarking = config.sock;
+        const darkFur = config.dark || furColor;
 
         return createCutoutTexture((ctx) => {
             ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-            
-            // Hintere Beine (feiner und definierter) mit weißen Fesseln
-            ctx.lineWidth = 10;
-            ctx.strokeStyle = legColor; ctx.fillStyle = legColor;
-            ctx.beginPath(); ctx.moveTo(135, 150); ctx.lineTo(130, 200); ctx.lineTo(132, 235); ctx.stroke(); // Hinten Vorne
-            ctx.beginPath(); ctx.moveTo(60, 150); ctx.lineTo(50, 190); ctx.lineTo(52, 235); ctx.stroke(); // Hinten Hinten
-            
-            ctx.fillStyle = whiteMarking;
-            ctx.beginPath(); ctx.moveTo(130, 220); ctx.lineTo(132, 235); ctx.lineTo(138, 235); ctx.lineTo(140, 220); ctx.fill();
-            ctx.beginPath(); ctx.moveTo(50, 220); ctx.lineTo(52, 235); ctx.lineTo(58, 235); ctx.lineTo(60, 220); ctx.fill();
 
-            // Schweif
-            ctx.fillStyle = maneColor;
-            ctx.beginPath(); ctx.moveTo(30, 100); ctx.quadraticCurveTo(0, 140, 15, 220); ctx.quadraticCurveTo(35, 180, 45, 120); ctx.fill();
+            // --- 1. FAR LEGS (Hintergrund Beine) ---
+            // Vorne Links (aus Sicht des Pferdes)
+            ctx.fillStyle = legColor;
+            ctx.beginPath();
+            ctx.moveTo(180, 140);
+            ctx.lineTo(185, 190); // Knie
+            ctx.lineTo(180, 235); // Fesselkopf
+            ctx.lineTo(190, 245); // Huf
+            ctx.lineTo(175, 248);
+            ctx.lineTo(165, 235);
+            ctx.lineTo(170, 190);
+            ctx.fill();
             
-            // Neuer eleganter Körper & Hals (Arabertyp)
-            ctx.fillStyle = furColor;
-            ctx.beginPath(); 
-            ctx.moveTo(110, 80); // Widerrist
-            ctx.quadraticCurveTo(70, 95, 60, 85); // Rücken (leicht konkav)
-            ctx.quadraticCurveTo(30, 85, 30, 125); // Kruppe (hoch angesetzt)
-            ctx.quadraticCurveTo(30, 170, 60, 165); // Hinterteil
-            ctx.quadraticCurveTo(95, 170, 125, 155); // Bauch (aufgezogen)
-            ctx.quadraticCurveTo(155, 145, 150, 105); // Brust
-            ctx.quadraticCurveTo(155, 55, 175, 40); // Hals vorn (geschwungen, hoch getragen)
-            ctx.lineTo(185, 55); // Ganasche (ausgeprägt)
-            ctx.lineTo(215, 50); // Maul unten
-            ctx.quadraticCurveTo(230, 45, 225, 35); // Nüstern (groß)
-            ctx.lineTo(200, 20); // Stirn (breit)
-            ctx.lineTo(165, 15); // Genick (fein)
-            ctx.quadraticCurveTo(135, 45, 110, 80); // Halskamm
+            // Hinten Links
+            ctx.fillStyle = legColor;
+            ctx.beginPath();
+            ctx.moveTo(80, 145);
+            ctx.lineTo(95, 180); // Sprunggelenk
+            ctx.lineTo(90, 230); // Fesselkopf
+            ctx.lineTo(100, 240); // Huf vorne
+            ctx.lineTo(85, 245); // Huf unten
+            ctx.lineTo(80, 230); // Fesselkopf hinten
+            ctx.lineTo(70, 180); // Sprunggelenk hinten
             ctx.fill();
 
-            // Vordere Beine (feiner) mit weißen Fesseln
-            ctx.lineWidth = 12;
-            ctx.strokeStyle = legColor; ctx.fillStyle = legColor;
-            ctx.beginPath(); ctx.moveTo(145, 150); ctx.lineTo(140, 205); ctx.lineTo(142, 240); ctx.stroke(); // Vorne Vorne
-            ctx.beginPath(); ctx.moveTo(70, 150); ctx.lineTo(60, 205); ctx.lineTo(62, 240); ctx.stroke(); // Vorne Hinten
-
-            ctx.fillStyle = whiteMarking;
-            ctx.beginPath(); ctx.moveTo(140, 225); ctx.lineTo(142, 240); ctx.lineTo(148, 240); ctx.lineTo(150, 225); ctx.fill();
-            ctx.beginPath(); ctx.moveTo(60, 225); ctx.lineTo(62, 240); ctx.lineTo(68, 240); ctx.lineTo(70, 225); ctx.fill();
-
-            // Mähne
+            // --- 2. SCHWEIF (Tail) ---
             ctx.fillStyle = maneColor;
-            ctx.beginPath(); ctx.moveTo(165, 15); ctx.quadraticCurveTo(145, 30, 110, 80); ctx.lineTo(120, 85); ctx.quadraticCurveTo(150, 40, 170, 25); ctx.fill();
-            
-            // Ohr & Auge & Hufe
+            ctx.beginPath();
+            ctx.moveTo(55, 105); 
+            ctx.quadraticCurveTo(20, 120, 25, 200); 
+            ctx.quadraticCurveTo(45, 160, 50, 120);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(50, 110);
+            ctx.quadraticCurveTo(35, 150, 45, 210);
+            ctx.quadraticCurveTo(55, 160, 52, 115);
+            ctx.fill();
+
+            // --- 3. KÖRPER & KOPF (Main Body exakt nach Foto) ---
             ctx.fillStyle = furColor;
-            ctx.beginPath(); ctx.moveTo(168, 18); ctx.lineTo(158, 0); ctx.lineTo(178, 8); ctx.fill(); // Ohr (klein, spitz)
-            ctx.fillStyle = "#000"; ctx.beginPath(); ctx.arc(188, 35, 3, 0, Math.PI*2); ctx.fill(); // Auge (groß, dunkel)
+            ctx.beginPath();
+            ctx.moveTo(280, 100); // Maul
+            ctx.quadraticCurveTo(275, 80, 250, 60); // Nasenrücken zu Stirn
+            ctx.lineTo(245, 45); // Zum Ohr
+            ctx.lineTo(240, 25); // Ohrspitze
+            ctx.lineTo(230, 40); // Ohr hinten
+            ctx.quadraticCurveTo(200, 55, 160, 85); // Halskamm zum Widerrist
+            ctx.quadraticCurveTo(130, 105, 100, 100); // Rücken
+            ctx.quadraticCurveTo(70, 95, 55, 105); // Kruppe
+            ctx.quadraticCurveTo(35, 130, 45, 175); // Hinterteil zu Sprunggelenk
+            ctx.lineTo(35, 235); // Bein hinten runter (Near Hind Leg)
+            ctx.lineTo(45, 245); // Huf unten
+            ctx.lineTo(55, 245); // Huf vorne unten
+            ctx.lineTo(50, 235); // Kronrand
+            ctx.lineTo(70, 165); // Kniegelenk hinten
+            ctx.quadraticCurveTo(90, 150, 130, 155); // Bauch
+            ctx.quadraticCurveTo(150, 155, 160, 140); // Bauch zu Ellenbogen
+            ctx.lineTo(155, 190); // Bein vorne (Near Front Leg)
+            ctx.lineTo(145, 235); // Fesselkopf
+            ctx.lineTo(155, 245); // Huf unten
+            ctx.lineTo(165, 245); // Huf vorne
+            ctx.lineTo(160, 235); // Kronrand
+            ctx.lineTo(175, 185); // Knie vorne
+            ctx.lineTo(185, 130); // Brust / Schulter
+            ctx.quadraticCurveTo(210, 115, 230, 100); // Hals unten zu Ganasche
+            ctx.quadraticCurveTo(245, 105, 260, 100); // Unterkiefer
+            ctx.quadraticCurveTo(270, 110, 280, 100); // Maul unten
+            ctx.closePath();
+            ctx.fill();
+
+            // --- 4. BEINFÄRBUNG (Black Points) ---
+            ctx.save();
+            ctx.globalCompositeOperation = 'source-atop';
+            ctx.fillStyle = legColor;
             
-            ctx.strokeStyle = hoofColor; ctx.lineWidth = 12;
-            ctx.beginPath(); ctx.moveTo(140, 240); ctx.lineTo(142, 250); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(60, 240); ctx.lineTo(62, 250); ctx.stroke();
-            ctx.lineWidth = 10;
-            ctx.beginPath(); ctx.moveTo(130, 235); ctx.lineTo(132, 245); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(50, 235); ctx.lineTo(52, 245); ctx.stroke();
+            // Vorne rechts
+            ctx.beginPath();
+            ctx.moveTo(140, 180); ctx.lineTo(190, 180); ctx.lineTo(190, 260); ctx.lineTo(140, 260);
+            ctx.fill();
+
+            // Hinten rechts
+            ctx.beginPath();
+            ctx.moveTo(25, 180); ctx.lineTo(80, 180); ctx.lineTo(80, 260); ctx.lineTo(25, 260);
+            ctx.fill();
+
+            // --- 5. WEISSE ABZEICHEN (Socks) wie im Foto ---
+            ctx.fillStyle = whiteMarking;
+            ctx.beginPath();
+            ctx.moveTo(30, 215); ctx.lineTo(65, 210); ctx.lineTo(65, 260); ctx.lineTo(30, 260);
+            ctx.fill();
+
+            // Sanftes Schatten/Muskel-Overlay für Foto-Realismus
+            ctx.fillStyle = darkFur;
+            ctx.globalAlpha = 0.4;
+            ctx.beginPath(); // Schulter
+            ctx.moveTo(160, 85); ctx.quadraticCurveTo(180, 120, 160, 150); ctx.quadraticCurveTo(140, 120, 160, 85);
+            ctx.fill();
+            ctx.beginPath(); // Flanke/Hinterteil
+            ctx.moveTo(90, 100); ctx.quadraticCurveTo(70, 130, 90, 160); ctx.quadraticCurveTo(110, 130, 90, 100);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+            ctx.restore();
+
+            // --- 6. HUFE ---
+            ctx.fillStyle = hoofColor;
+            ctx.beginPath(); // Vorne
+            ctx.moveTo(143, 238); ctx.lineTo(162, 238); ctx.lineTo(165, 248); ctx.lineTo(145, 248); ctx.fill();
             
-            // Schnauzendetail
-            ctx.fillStyle = "rgba(0,0,0,0.2)";
-            ctx.beginPath(); ctx.arc(218, 42, 4, 0, Math.PI*2); ctx.fill(); 
+            ctx.fillStyle = "#d4c8bc"; // Hellere Hufe auf weißem Bein
+            ctx.beginPath(); // Hinten
+            ctx.moveTo(33, 238); ctx.lineTo(52, 238); ctx.lineTo(55, 248); ctx.lineTo(45, 248); ctx.fill();
+
+            // --- 7. MÄHNE (Mane) ---
+            ctx.fillStyle = maneColor;
+            ctx.beginPath();
+            ctx.moveTo(235, 35); 
+            ctx.quadraticCurveTo(200, 50, 160, 85); 
+            ctx.lineTo(170, 90);
+            ctx.quadraticCurveTo(205, 65, 230, 45);
+            ctx.fill();
+
+            // --- 8. GESICHTSDETAILS ---
+            // Auge
+            ctx.fillStyle = "#000000";
+            ctx.beginPath(); ctx.arc(252, 65, 3, 0, Math.PI*2); ctx.fill();
+            // Nüster
+            ctx.fillStyle = "#1a1a1a";
+            ctx.beginPath(); ctx.arc(270, 90, 2.5, 0, Math.PI*2); ctx.fill();
+            // Ganaschen-Definition
+            ctx.strokeStyle = darkFur;
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(245, 85, 10, Math.PI, Math.PI*1.8); ctx.stroke();
+            
         }, 320, 256);
     }
 
@@ -753,7 +832,7 @@
 
         createBigStable(); 
         createRoundpen();
-        createPasture(); // HIER WURDE DAS WASSERBECKEN ENTFERNT
+        createPasture();
         createArena();
 
         const texTree = generateTreeTexture("FRÜHLING");
@@ -867,7 +946,6 @@
     function createPasture() {
         const z = ZONES.PASTURE; const y = getTerrainHeight(z.x, z.z);
         createFenceRect(z.x, z.z, 35, 35, false, y);
-        // Wasserbecken (trough & w) wurde hier erfolgreich entfernt!
     }
 
     function createArena() {
@@ -976,7 +1054,7 @@
         const isInside = newPos.x > minX && newPos.x < maxX && newPos.z > minZ && newPos.z < maxZ;
         const wasInside = oldPos.x > minX && oldPos.x < maxX && oldPos.z > minZ && oldPos.z < maxZ;
         if (isInside !== wasInside) {
-            const doorZ = sZ + d/2; const dx = Math.abs(newPos.x - sX);   
+            const doorZ = sZ + d/2; const dx = Math.abs(newPos.x - sX);    
             if (newPos.z > minZ && newPos.z > maxZ - 2) { if (dx < 3.0) return false; }
             return true;
         }
@@ -998,7 +1076,6 @@
                 isLeashed = false;
                 leashLine.visible = false;
                 horseState = "RIDDEN";
-                // Setze Spieler mittig auf das Pferd
                 player.position.copy(horse.position);
                 player.rotation.copy(horse.rotation);
                 showBubble("Aufgesessen!");
@@ -1048,7 +1125,6 @@
             }
         }
         
-        // Durchsichtig machen der Stallwände, wenn wir innen sind
         const distStable = activeEntity.position.distanceTo(new THREE.Vector3(ZONES.STABLE.x, 0, ZONES.STABLE.z));
         const camDistStable = camera.position.distanceTo(new THREE.Vector3(ZONES.STABLE.x, 0, ZONES.STABLE.z));
         let targetOp = (distStable < 18 || camDistStable < 22) ? 0.2 : 1.0;
@@ -1061,20 +1137,16 @@
         }
 
         if(isRiding) {
-            // Pferd bewegt sich & Reiter "sitzt" drauf
             horse.position.y = getTerrainHeight(horse.position.x, horse.position.z);
             animateHorse(moving, isSprinting ? 1.5 : 1.0);
             
-            // Spieler klebt mittig am Pferd fest, leicht erhöht
             player.position.set(horse.position.x, horse.position.y + 0.2, horse.position.z);
             player.rotation.y = horse.rotation.y;
-            // Spieler schaut in die gleiche Richtung wie das Pferd, ohne Spiegelung
             player.mesh.scale.x = Math.abs(player.mesh.scale.x) * (horse.mesh.scale.x > 0 ? 1 : -1);
             
             if(moving) {
                 const freq = isSprinting ? 0.015 : 0.01; 
                 const t = Date.now() * freq;
-                // Leicht höheres Wippen da man aufsitzt
                 player.mesh.rotation.z = Math.sin(t) * 0.05; 
                 player.mesh.position.y = horse.position.y + 1.6 + Math.abs(Math.sin(t*2)*0.06); 
             } else {
@@ -1082,7 +1154,6 @@
                 player.mesh.position.y = THREE.MathUtils.lerp(player.mesh.position.y, horse.position.y + 1.6, 0.2);
             }
         } else {
-            // Normales Laufen
             player.position.y = getTerrainHeight(player.position.x, player.position.z);
             if(moving) {
                 const freq = isSprinting ? 0.015 : 0.01; 
@@ -1094,7 +1165,6 @@
                 player.mesh.position.y = THREE.MathUtils.lerp(player.mesh.position.y, 1.25, 0.2);
             }
 
-            // Pferd läuft hinterher oder macht Aufgaben
             if(isLeashed) {
                 horseState = "FOLLOWING";
                 const distP = player.position.distanceTo(horse.position);
@@ -1297,7 +1367,6 @@
 
         drawMinimap();
         
-        // Kamera verfolgt immer den aktiven Charakter (Mensch oder Pferd, wenn geritten wird)
         let activeFocus = isRiding ? horse : player;
         const th = getTerrainHeight(activeFocus.position.x, activeFocus.position.z);
         const target = activeFocus.position.clone(); target.y = th+2;
@@ -1346,6 +1415,7 @@
     document.getElementById('startBtn').onclick=()=>{
         AudioSys.init(); 
         updateColors(); document.getElementById('config-panel').style.opacity='0'; setTimeout(()=>document.getElementById('config-panel').style.display='none',500);
+        showBubble("Neues Pferd aus Bild geladen!");
     };
     
     function updateColors(){
